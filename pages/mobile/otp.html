@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify OTP — PromoTrack</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<link rel="stylesheet" href="../../css/mobile.css">
+</head>
+<body class="mobile-app">
+<div class="mobile-frame">
+  <div class="mobile-screen no-nav">
+    <div id="mobile-topbar-mount"></div>
+    <div class="mobile-auth" style="padding-top:24px;">
+      <p class="otp-target" id="otp-target-mobile"></p>
+      <p class="auth-sub" style="text-align:center; margin-bottom: var(--sp-2);">Enter the 6-digit code sent to your mobile number.</p>
+
+      <div class="otp-inputs">
+        <input type="text" inputmode="numeric" maxlength="1">
+        <input type="text" inputmode="numeric" maxlength="1">
+        <input type="text" inputmode="numeric" maxlength="1">
+        <input type="text" inputmode="numeric" maxlength="1">
+        <input type="text" inputmode="numeric" maxlength="1">
+        <input type="text" inputmode="numeric" maxlength="1">
+      </div>
+      <div class="otp-error" id="otp-error"></div>
+      <div class="otp-timer" id="otp-timer">00:45</div>
+
+      <button class="btn btn-primary btn-block" id="verify-otp-btn">Verify OTP</button>
+      <div class="otp-resend"><a href="#" id="resend-otp-link">Resend OTP</a></div>
+
+      <p class="form-hint" style="margin-top: var(--sp-6); text-align:center;">Demo OTP: <strong>123456</strong></p>
+    </div>
+  </div>
+</div>
+
+<script src="../../js/mock-data.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/mobile.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  initOtpPage();
+});
+</script>
+</body>
+</html>

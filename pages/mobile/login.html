@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Login — PromoTrack</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<link rel="stylesheet" href="../../css/mobile.css">
+</head>
+<body class="mobile-app">
+<div class="mobile-frame">
+  <div class="mobile-screen no-nav">
+    <div class="mobile-auth">
+      <div style="text-align:right; margin-bottom: var(--sp-3);">
+        <a href="../../index.html" style="font-size:11.5px; color:var(--color-text-faint); font-weight:600;">&larr; Prototype Switcher</a>
+      </div>
+      <div class="mobile-auth-logo">PT</div>
+      <h1>Agent Login</h1>
+      <p class="auth-sub">Enter the Activity Number assigned to you and your registered mobile number.</p>
+
+      <div class="form-group">
+        <label>Activity Number</label>
+        <input type="text" class="form-control" id="login-activity" placeholder="ACT-10001">
+        <div class="field-error" id="login-activity-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Mobile Number</label>
+        <input type="tel" class="form-control" id="login-mobile" placeholder="9876543210">
+        <div class="field-error" id="login-mobile-error"></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="send-otp-btn">Send OTP</button>
+
+      <p class="form-hint" style="margin-top: var(--sp-6); text-align:center; line-height:1.7;">
+        Demo login &mdash; Activity <strong>ACT-10001</strong><br>
+        Mobile <strong>9876543210</strong> &middot; OTP <strong>123456</strong>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="../../js/mock-data.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/mobile.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  initLoginPage();
+});
+</script>
+</body>
+</html>

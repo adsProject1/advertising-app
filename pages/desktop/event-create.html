@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Event — PromoTrack</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<link rel="stylesheet" href="../../css/desktop.css">
+</head>
+<body class="desktop-app">
+<div id="shell-header"></div>
+<div class="app-body">
+  <div id="shell-sidebar"></div>
+  <main class="main-content main-content-narrow">
+    <div class="page-header">
+      <div>
+        <h1 id="page-title">Create Event</h1>
+        <div class="subtitle">Define the campaign details, schedule and elements for this event.</div>
+      </div>
+    </div>
+
+    <div id="event-form-panel" class="card card-pad">
+      <div class="form-section">
+        <div class="form-section-title">Basic Information</div>
+        <div class="form-group full">
+          <label>Event Name <span class="req">*</span></label>
+          <input type="text" class="form-control" id="event-name" placeholder="e.g. Raksha Bandhan — Hero Bike Promotion">
+          <div class="field-error" id="event-name-error"></div>
+        </div>
+        <div class="form-group full">
+          <label>Event Description</label>
+          <textarea class="form-control" id="event-description" placeholder="Brief description of the campaign"></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Campaign / Brand Name</label>
+            <input type="text" class="form-control" id="event-brand" placeholder="e.g. Hero MotoCorp">
+          </div>
+          <div class="form-group">
+            <label>Product Name</label>
+            <input type="text" class="form-control" id="event-product" placeholder="e.g. Hero Splendor+">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Event Schedule</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Date From <span class="req">*</span></label>
+            <input type="date" class="form-control" id="event-date-from">
+            <div class="field-error" id="event-date-from-error"></div>
+          </div>
+          <div class="form-group">
+            <label>Date To <span class="req">*</span></label>
+            <input type="date" class="form-control" id="event-date-to">
+            <div class="field-error" id="event-date-to-error"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Event Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>City</label>
+            <input type="text" class="form-control" id="event-city" placeholder="e.g. Pune">
+          </div>
+          <div class="form-group">
+            <label>State</label>
+            <input type="text" class="form-control" id="event-state" placeholder="e.g. Maharashtra">
+          </div>
+          <div class="form-group">
+            <label>Target Audience</label>
+            <input type="text" class="form-control" id="event-audience" placeholder="e.g. Young professionals, 18-40 yrs">
+          </div>
+          <div class="form-group">
+            <label>Expected Footfall</label>
+            <input type="number" min="0" class="form-control" id="event-footfall" placeholder="e.g. 12000">
+          </div>
+        </div>
+        <div class="form-group full">
+          <label>Special Instructions</label>
+          <textarea class="form-control" id="event-instructions" placeholder="Any special notes for the operations team"></textarea>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">Event Elements</div>
+        <div class="element-tiles" id="event-elements-tiles"></div>
+        <div class="add-custom-row">
+          <input type="text" class="form-control" id="custom-element-input" placeholder="Add a custom element...">
+          <button type="button" class="btn btn-secondary" id="add-custom-element-btn">+ Add</button>
+        </div>
+      </div>
+
+      <div class="form-actions spread">
+        <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+        <div style="display:flex; gap: var(--sp-3);">
+          <button class="btn btn-secondary" id="save-draft-btn">Save as Draft</button>
+          <button class="btn btn-primary" id="create-event-btn">Create Event</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="event-success-panel" class="card" style="display:none;"></div>
+  </main>
+</div>
+
+<script src="../../js/mock-data.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/desktop.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  initShell('events');
+  initEventCreatePage();
+});
+</script>
+</body>
+</html>

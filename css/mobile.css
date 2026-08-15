@@ -1,0 +1,227 @@
+/* ==================================================================
+   mobile.css
+   Layout for the Mobile Agent application. Designed as a dedicated
+   field-execution app, not a squeezed desktop page. The app frame is
+   constrained to a phone-width column (390px target, 360-430px
+   supported) and centered on wider viewports for demo purposes.
+   ================================================================== */
+
+body.mobile-app {
+  background: #e7eaf2;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.mobile-frame {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  background: var(--color-bg);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 0 1px var(--color-border), var(--shadow-lg);
+}
+
+@media (min-width: 431px) {
+  body.mobile-app { padding: var(--sp-6) 0; }
+  .mobile-frame { min-height: 844px; border-radius: 32px; overflow: hidden; }
+}
+
+.mobile-screen { flex: 1; display: flex; flex-direction: column; padding-bottom: 78px; }
+.mobile-screen.no-nav { padding-bottom: 0; }
+
+/* ------------------------------------------------------------ */
+/* Top bar                                                        */
+/* ------------------------------------------------------------ */
+
+.mobile-topbar {
+  display: flex; align-items: center; gap: 10px; padding: 16px 18px 14px;
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+  position: sticky; top: 0; z-index: 50;
+}
+.mobile-topbar .back-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--color-border-strong); background: var(--color-surface); display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; color: var(--color-text); flex-shrink: 0; }
+.mobile-topbar .back-btn:hover { background: var(--color-gray-bg); }
+.mobile-topbar-title { font-size: 15.5px; font-weight: 700; }
+.mobile-topbar-title .sub { display: block; font-size: 11.5px; font-weight: 550; color: var(--color-text-faint); margin-top: 1px; }
+
+/* ------------------------------------------------------------ */
+/* Bottom nav                                                     */
+/* ------------------------------------------------------------ */
+
+.mobile-bottomnav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
+  background: var(--color-surface); border-top: 1px solid var(--color-border); display: flex;
+  padding: 8px 6px calc(env(safe-area-inset-bottom, 8px) + 6px); z-index: 60;
+}
+.mobile-bottomnav a {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0;
+  color: var(--color-text-faint); font-size: 10.5px; font-weight: 650; border-radius: var(--radius-sm);
+}
+.mobile-bottomnav a .nav-ic { font-size: 19px; }
+.mobile-bottomnav a.active { color: var(--color-primary); }
+.mobile-bottomnav a:hover { text-decoration: none; }
+
+/* ------------------------------------------------------------ */
+/* Login / OTP                                                    */
+/* ------------------------------------------------------------ */
+
+.mobile-auth { padding: 48px 26px 26px; display: flex; flex-direction: column; flex: 1; }
+.mobile-auth-logo { width: 52px; height: 52px; border-radius: 14px; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; margin-bottom: var(--sp-5); }
+.mobile-auth h1 { font-size: 22px; margin-bottom: 6px; }
+.mobile-auth .auth-sub { color: var(--color-text-muted); font-size: 13.5px; margin-bottom: var(--sp-6); line-height: 1.5; }
+.mobile-auth .form-control { padding: 12px 14px; font-size: 15px; }
+.mobile-auth .btn { padding: 13px; font-size: 14.5px; margin-top: var(--sp-3); }
+.mobile-auth .form-hint { margin-top: var(--sp-5); text-align: center; line-height: 1.5; }
+
+.otp-inputs { display: flex; gap: 8px; justify-content: space-between; margin: var(--sp-5) 0; }
+.otp-inputs input {
+  width: 46px; height: 54px; text-align: center; font-size: 20px; font-weight: 700;
+  border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface);
+}
+.otp-inputs input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }
+.otp-inputs input.input-invalid { border-color: var(--color-red); }
+.otp-timer { text-align: center; font-size: 13px; color: var(--color-text-muted); font-weight: 600; margin-bottom: var(--sp-5); }
+.otp-resend { text-align: center; margin-top: var(--sp-5); font-size: 13px; }
+.otp-target { text-align: center; font-size: 14px; font-weight: 650; margin-bottom: var(--sp-2); }
+.otp-error { text-align: center; color: var(--color-red); font-size: 12.5px; font-weight: 600; min-height: 16px; margin-top: -8px; margin-bottom: 8px; }
+
+/* ------------------------------------------------------------ */
+/* Home                                                            */
+/* ------------------------------------------------------------ */
+
+.mobile-hero {
+  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: #fff; padding: 22px 20px 26px; border-radius: 0 0 22px 22px;
+}
+.mobile-hero .greeting { font-size: 13px; opacity: 0.85; font-weight: 550; }
+.mobile-hero .activity-id { font-size: 12px; font-weight: 700; background: rgba(255,255,255,0.18); display: inline-block; padding: 3px 10px; border-radius: 999px; margin-top: 8px; letter-spacing: 0.03em; }
+.mobile-hero h2 { font-size: 19px; margin-top: 8px; }
+.mobile-hero .hero-location { font-size: 13px; opacity: 0.9; margin-top: 3px; }
+
+.mobile-event-card {
+  margin: -18px 18px 0; background: var(--color-surface); border-radius: var(--radius-lg);
+  padding: 16px 18px; box-shadow: var(--shadow-md); position: relative; z-index: 5;
+}
+.mobile-event-card .event-name { font-size: 14.5px; font-weight: 700; }
+.mobile-event-card .event-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 12px; color: var(--color-text-muted); }
+
+.mobile-section { padding: 22px 18px 6px; }
+.mobile-section-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.mobile-section-title .count-pill { font-size: 11.5px; background: var(--color-gray-bg); color: var(--color-text-muted); padding: 2px 9px; border-radius: 999px; font-weight: 650; }
+
+/* ------------------------------------------------------------ */
+/* Task cards                                                     */
+/* ------------------------------------------------------------ */
+
+.mobile-task-card {
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  padding: 15px 16px; margin-bottom: 12px; box-shadow: var(--shadow-sm);
+}
+.mobile-task-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.mobile-task-name { font-size: 14.5px; font-weight: 700; }
+.mobile-task-time { font-size: 12px; color: var(--color-text-faint); font-weight: 600; margin-top: 2px; }
+.mobile-task-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.mobile-task-tag { font-size: 11px; font-weight: 650; background: var(--color-gray-bg); color: var(--color-text-muted); padding: 3px 9px; border-radius: 999px; }
+.mobile-task-card-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--color-border); }
+.mobile-task-card a.card-tap-link { display: block; }
+.mobile-task-card a.card-tap-link:hover { text-decoration: none; }
+
+/* ------------------------------------------------------------ */
+/* Generic mobile content blocks                                   */
+/* ------------------------------------------------------------ */
+
+.mobile-content { padding: 18px; flex: 1; }
+.mobile-block { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
+.mobile-block-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--color-text-faint); margin-bottom: 10px; }
+.mobile-kv { display: flex; justify-content: space-between; padding: 8px 0; font-size: 13.5px; border-bottom: 1px solid var(--color-border); }
+.mobile-kv:last-child { border-bottom: none; }
+.mobile-kv .k { color: var(--color-text-muted); }
+.mobile-kv .v { font-weight: 650; text-align: right; }
+
+.req-list { display: flex; flex-direction: column; gap: 8px; }
+.req-item { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 550; }
+.req-item .req-check { width: 20px; height: 20px; border-radius: 50%; background: var(--color-green-bg); color: var(--color-green); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+
+/* ------------------------------------------------------------ */
+/* Camera / photo capture                                          */
+/* ------------------------------------------------------------ */
+
+.camera-placeholder { height: 320px; margin: 0 18px 18px; border-radius: var(--radius-lg); }
+.captured-photo-frame {
+  height: 320px; margin: 0 18px 18px; border-radius: var(--radius-lg); overflow: hidden; position: relative;
+  background: linear-gradient(135deg, #3a4560, #232a3d); display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.captured-photo-frame .cp-badge { position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.4); font-size: 11px; padding: 4px 10px; border-radius: 999px; font-weight: 650; }
+.captured-photo-frame .cp-icon { font-size: 40px; opacity: 0.85; }
+.captured-photo-frame .cp-caption { position: absolute; bottom: 14px; left: 14px; right: 14px; font-size: 12px; opacity: 0.85; text-align: center; }
+
+.capture-actions { display: flex; gap: 12px; padding: 0 18px; }
+.capture-actions .btn { flex: 1; padding: 13px; }
+
+/* ------------------------------------------------------------ */
+/* Location capture                                                */
+/* ------------------------------------------------------------ */
+
+.location-status { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--color-green-bg); color: var(--color-green); border-radius: var(--radius-md); font-weight: 700; font-size: 13.5px; margin-bottom: 14px; }
+.location-status.loading { background: var(--color-blue-bg); color: var(--color-blue); }
+
+/* ------------------------------------------------------------ */
+/* Step progress (capture wizard)                                  */
+/* ------------------------------------------------------------ */
+
+.step-progress { display: flex; align-items: center; gap: 6px; padding: 14px 18px 4px; }
+.step-progress .step-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--color-gray-bg); }
+.step-progress .step-dot.done { background: var(--color-primary); }
+.step-progress .step-dot.current { background: var(--color-primary); opacity: 0.5; }
+
+.wizard-footer { padding: 14px 18px calc(env(safe-area-inset-bottom, 14px) + 8px); background: var(--color-surface); border-top: 1px solid var(--color-border); display: flex; gap: 10px; position: sticky; bottom: 0; }
+.wizard-footer .btn { flex: 1; padding: 13px; }
+
+/* ------------------------------------------------------------ */
+/* Success screen                                                  */
+/* ------------------------------------------------------------ */
+
+.mobile-success { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 26px; text-align: center; }
+.mobile-success .success-icon { width: 78px; height: 78px; border-radius: 50%; background: var(--color-green-bg); color: var(--color-green); display: flex; align-items: center; justify-content: center; font-size: 36px; margin-bottom: var(--sp-5); }
+.mobile-success h2 { font-size: 19px; margin-bottom: 6px; }
+.mobile-success .task-name { font-size: 15px; font-weight: 650; color: var(--color-text-muted); margin-bottom: var(--sp-4); }
+.mobile-success .success-detail { font-size: 13px; color: var(--color-text-muted); line-height: 1.6; }
+.mobile-success .success-detail strong { color: var(--color-text); }
+.mobile-success .btn { margin-top: var(--sp-8); width: 100%; padding: 13px; }
+
+/* ------------------------------------------------------------ */
+/* History                                                          */
+/* ------------------------------------------------------------ */
+
+.history-group-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--color-text-faint); padding: 6px 0 10px; }
+.history-item { display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 13px 15px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
+.history-item .hist-check { width: 30px; height: 30px; border-radius: 50%; background: var(--color-green-bg); color: var(--color-green); display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0; }
+.history-item .hist-name { font-size: 13.5px; font-weight: 650; }
+.history-item .hist-meta { font-size: 12px; color: var(--color-text-faint); margin-top: 2px; }
+
+/* ------------------------------------------------------------ */
+/* Profile                                                          */
+/* ------------------------------------------------------------ */
+
+.profile-header { display: flex; flex-direction: column; align-items: center; padding: 30px 18px 22px; background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.profile-avatar { width: 68px; height: 68px; border-radius: 50%; background: var(--color-primary-light); color: var(--color-primary-dark); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+.profile-header h2 { font-size: 18px; }
+.profile-header .profile-mobile { color: var(--color-text-muted); font-size: 13.5px; margin-top: 3px; }
+.profile-header .profile-badges { display: flex; gap: 8px; margin-top: 10px; }
+
+.profile-action-row { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; background: var(--color-surface); border-bottom: 1px solid var(--color-border); font-size: 14px; font-weight: 600; }
+.profile-action-row:hover { background: #f8f9fd; cursor: pointer; }
+.profile-action-row.danger { color: var(--color-red); }
+.profile-action-row .arrow { color: var(--color-text-faint); }
+
+/* ------------------------------------------------------------ */
+/* Comment textarea                                                */
+/* ------------------------------------------------------------ */
+
+.comment-box { padding: 0 18px 18px; }
+
+@media (max-width: 374px) {
+  .otp-inputs input { width: 40px; height: 48px; font-size: 17px; }
+}

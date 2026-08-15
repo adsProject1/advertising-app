@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — PromoTrack</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<link rel="stylesheet" href="../../css/desktop.css">
+</head>
+<body class="desktop-app">
+<div id="shell-header"></div>
+<div class="app-body">
+  <div id="shell-sidebar"></div>
+  <main class="main-content main-content-narrow">
+    <div class="page-header">
+      <div>
+        <h1>Settings</h1>
+        <div class="subtitle">Organization preferences and prototype controls.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: var(--sp-5);">
+      <div class="card-header"><h3>Organization Profile</h3></div>
+      <div class="card-body">
+        <div class="kv-grid">
+          <div class="kv-item"><div class="kv-label">Agency Name</div><div class="kv-value">Sparkline Promotions &amp; Activations</div></div>
+          <div class="kv-item"><div class="kv-label">Contact Email</div><div class="kv-value">ops@sparklinepromotions.example</div></div>
+          <div class="kv-item"><div class="kv-label">Time Zone</div><div class="kv-value">Asia/Kolkata (GMT+5:30)</div></div>
+          <div class="kv-item"><div class="kv-label">Plan</div><div class="kv-value">Operations Team &mdash; 25 seats</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: var(--sp-5);">
+      <div class="card-header"><h3>Notification Preferences</h3></div>
+      <div class="settings-grid">
+        <div class="settings-row">
+          <div><div class="settings-row-label">New submission alerts</div><div class="settings-row-desc">Notify ops team when a field agent submits task evidence.</div></div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-row-label">Daily execution summary</div><div class="settings-row-desc">Send a daily digest of task completion across active events.</div></div>
+          <div class="toggle on"></div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-row-label">Rejected submission escalation</div><div class="settings-row-desc">Escalate to activity owner if a submission is rejected.</div></div>
+          <div class="toggle"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Prototype Controls</h3></div>
+      <div class="card-body">
+        <p class="form-hint" style="margin-bottom: var(--sp-4);">This prototype stores all data locally in your browser. Use the control below to restore the original demo dataset, discarding any changes made in the Desktop or Mobile apps.</p>
+        <button class="btn btn-danger" id="reset-demo-btn">Reset Demo Data</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="../../js/mock-data.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/desktop.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  initShell('settings');
+  initSettingsPage();
+});
+</script>
+</body>
+</html>

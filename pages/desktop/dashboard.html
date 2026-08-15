@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — PromoTrack</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<link rel="stylesheet" href="../../css/desktop.css">
+</head>
+<body class="desktop-app">
+<div id="shell-header"></div>
+<div class="app-body">
+  <div id="shell-sidebar"></div>
+  <main class="main-content">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard</h1>
+        <div class="subtitle">Overview of all events, activities and field execution.</div>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value" id="stat-total-events">0</div></div>
+      <div class="stat-card"><div class="stat-label">Active Events</div><div class="stat-value" id="stat-active-events">0</div></div>
+      <div class="stat-card"><div class="stat-label">Activities</div><div class="stat-value" id="stat-activities">0</div></div>
+      <div class="stat-card"><div class="stat-label">Assigned Agents</div><div class="stat-value" id="stat-agents">0</div></div>
+      <div class="stat-card"><div class="stat-label">Pending Tasks</div><div class="stat-value" id="stat-pending-tasks">0</div></div>
+      <div class="stat-card"><div class="stat-label">Completed Tasks</div><div class="stat-value" id="stat-completed-tasks">0</div></div>
+    </div>
+
+    <div class="card" style="margin-top: var(--sp-6);">
+      <div class="card-header"><h3>Event Execution Overview</h3><a class="btn btn-secondary btn-sm" href="events.html">View All Events</a></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>Event</th><th>Date</th><th class="num">Activities</th><th class="num">Agents</th><th class="num">Tasks</th><th>Progress</th><th>Status</th>
+          </tr></thead>
+          <tbody id="dashboard-events-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: var(--sp-5);">
+      <div class="card-header"><h3>Today's Activities</h3></div>
+      <div id="today-activities-list"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../js/mock-data.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/desktop.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  initShell('dashboard');
+  initDashboardPage();
+});
+</script>
+</body>
+</html>

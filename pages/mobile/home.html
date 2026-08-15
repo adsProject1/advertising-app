@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home — PromoTrack Agent</title>
+<link rel="stylesheet" href="../../css/styles.css">
+<link rel="stylesheet" href="../../css/mobile.css">
+</head>
+<body class="mobile-app">
+<div class="mobile-frame">
+  <div class="mobile-screen">
+    <div class="mobile-hero">
+      <div class="greeting"><span id="greeting-word"></span> <span id="greeting-name"></span></div>
+      <div class="activity-id mono" id="home-activity-id"></div>
+      <h2 id="home-event-name"></h2>
+      <div class="hero-location" id="home-activity-location"></div>
+    </div>
+
+    <div class="mobile-event-card">
+      <div class="event-name">Activity Schedule</div>
+      <div class="event-meta">
+        <span id="home-event-dates"></span>
+        <span id="home-event-status"></span>
+      </div>
+    </div>
+
+    <div class="mobile-section">
+      <div class="mobile-section-title">Today's Tasks <span class="count-pill" id="home-tasks-count">0</span></div>
+      <div id="home-tasks-list"></div>
+    </div>
+  </div>
+  <div id="mobile-bottomnav-mount"></div>
+</div>
+
+<script src="../../js/mock-data.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/mobile.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  initHomePage();
+});
+</script>
+</body>
+</html>
