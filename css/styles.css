@@ -223,26 +223,10 @@ textarea.form-control { resize: vertical; min-height: 72px; }
 .form-actions.spread { justify-content: space-between; }
 
 /* ------------------------------------------------------------ */
-/* Chips (agent assignment)                                       */
+/* Avatar                                                          */
 /* ------------------------------------------------------------ */
 
-.chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 10px;
-  background: var(--color-primary-light); color: var(--color-primary-dark);
-  border-radius: 999px; font-size: 12.5px; font-weight: 600;
-}
-.chip button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 2px; opacity: 0.7; }
-.chip button:hover { opacity: 1; }
-.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
-
-.agent-picker { border: 1px solid var(--color-border); border-radius: var(--radius-md); max-height: 220px; overflow-y: auto; }
-.agent-picker-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--color-border); cursor: pointer; }
-.agent-picker-row:last-child { border-bottom: none; }
-.agent-picker-row:hover { background: #f8f9fd; }
-.agent-picker-row input { width: 16px; height: 16px; }
 .agent-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--color-primary-light); color: var(--color-primary-dark); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
-.agent-picker-name { font-weight: 600; }
-.agent-picker-mobile { color: var(--color-text-faint); margin-left: auto; font-size: 12.5px; }
 
 /* ------------------------------------------------------------ */
 /* Toast                                                          */

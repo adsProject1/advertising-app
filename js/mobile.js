@@ -5,6 +5,13 @@
  * location -> details -> review -> submit -> success). State is
  * shared with the Desktop Admin app via app.js / localStorage, so a
  * task submitted here is immediately visible in desktop Submissions.
+ *
+ * There is no agent roster: a field officer logs in with an Activity
+ * Number + their own mobile number (mock OTP). Access is scoped to
+ * the Activity Number only — whoever holds it can see and execute
+ * whatever tasks exist under that activity. Task status is therefore
+ * shared across anyone logged into the same activity, not tracked
+ * per person; submissions are attributed by mobile number.
  */
 
 const PENDING_LOGIN_KEY = 'promotrack_pending_login_v1';
@@ -60,8 +67,10 @@ function renderMobileBottomNav(activeKey) {
   el.innerHTML = `<nav class="mobile-bottomnav">${items.map(i => `<a href="${i.href}" class="${i.key === activeKey ? 'active' : ''}"><span class="nav-ic">${i.icon}</span>${i.label}</a>`).join('')}</nav>`;
 }
 
-function renderMobileTaskCard(task, agentId) {
-  const status = computeTaskAgentStatus(task.id, agentId);
+// Task status is shared across the activity (not per-person), so the
+// same card renders identically for whoever is logged into it.
+function renderMobileTaskCard(task) {
+  const status = computeTaskStatus(task);
   const reqTags = [];
   if (task.requirements.photo) reqTags.push('Photo Capture');
   if (task.requirements.gps) reqTags.push('GPS Required');
@@ -90,9 +99,9 @@ function renderMobileTaskCard(task, agentId) {
   </div>`;
 }
 
-function renderMobileTaskSection(title, list, agentId) {
+function renderMobileTaskSection(title, list) {
   if (list.length === 0) return '';
-  return `<div class="mobile-section-title">${title} <span class="count-pill">${list.length}</span></div>${list.map(t => renderMobileTaskCard(t, agentId)).join('')}`;
+  return `<div class="mobile-section-title">${title} <span class="count-pill">${list.length}</span></div>${list.map(t => renderMobileTaskCard(t)).join('')}`;
 }
 
 /* ================================================================ */
@@ -108,6 +117,9 @@ function initLoginPage() {
   document.getElementById('send-otp-btn').addEventListener('click', handleSendOtp);
 }
 
+// Access is scoped purely by Activity Number — there is no agent
+// roster to cross-check the mobile number against. Any mobile number
+// in a plausible 10-digit format can log into a valid activity.
 function handleSendOtp() {
   const activityId = document.getElementById('login-activity').value.trim().toUpperCase();
   const mobile = document.getElementById('login-mobile').value.trim();
@@ -122,13 +134,9 @@ function handleSendOtp() {
     activityErrorEl.textContent = '';
   }
 
-  const agent = getState().agents.find(a => a.mobile === mobile);
   const mobileErrorEl = document.getElementById('login-mobile-error');
-  if (!agent) {
-    mobileErrorEl.textContent = 'We could not find an agent with this mobile number.';
-    valid = false;
-  } else if (activity && !(activity.agentIds || []).includes(agent.id)) {
-    mobileErrorEl.textContent = 'This mobile number is not assigned to this activity.';
+  if (!/^\d{10}$/.test(mobile)) {
+    mobileErrorEl.textContent = 'Please enter a valid 10-digit mobile number.';
     valid = false;
   } else {
     mobileErrorEl.textContent = '';
@@ -136,7 +144,7 @@ function handleSendOtp() {
 
   if (!valid) return;
 
-  sessionStorage.setItem(PENDING_LOGIN_KEY, JSON.stringify({ activityId, agentId: agent.id, mobile }));
+  sessionStorage.setItem(PENDING_LOGIN_KEY, JSON.stringify({ activityId, mobile }));
   window.location.href = 'otp.html';
 }
 
@@ -218,7 +226,7 @@ function handleVerifyOtp(inputs, pending) {
     inputs.forEach(i => i.classList.add('input-invalid'));
     return;
   }
-  setAgentSession({ agentId: pending.agentId, activityId: pending.activityId, mobile: pending.mobile });
+  setAgentSession({ activityId: pending.activityId, mobile: pending.mobile });
   sessionStorage.removeItem(PENDING_LOGIN_KEY);
   clearInterval(otpTimerInterval);
   window.location.href = 'home.html';
@@ -233,24 +241,24 @@ function initHomePage() {
   if (!session) return;
   renderMobileBottomNav('home');
 
-  const agent = getAgent(session.agentId);
   const activity = getActivity(session.activityId);
   const event = getEvent(activity.eventId);
+  const firstName = activity.fieldOfficerName ? activity.fieldOfficerName.split(' ')[0] : '';
 
-  document.getElementById('greeting-word').textContent = greetingWord() + ',';
-  document.getElementById('greeting-name').textContent = agent.name.split(' ')[0];
+  document.getElementById('greeting-word').textContent = firstName ? greetingWord() + ',' : greetingWord() + '!';
+  document.getElementById('greeting-name').textContent = firstName;
   document.getElementById('home-activity-id').textContent = activity.id;
   document.getElementById('home-activity-location').textContent = `${activity.location.name}, ${activity.location.city}`;
   document.getElementById('home-event-name').textContent = event ? event.name : '';
-  document.getElementById('home-event-dates').textContent = formatDateRange(activity.startDate, activity.endDate);
+  document.getElementById('home-event-dates').textContent = event ? formatDateRange(event.dateFrom, event.dateTo) : '';
   document.getElementById('home-event-status').innerHTML = badge(activity.status);
 
-  const tasks = getTasksForAgent(agent.id).filter(t => t.activityId === activity.id);
+  const tasks = getTasksForActivity(activity.id);
   document.getElementById('home-tasks-count').textContent = tasks.length;
   const container = document.getElementById('home-tasks-list');
   container.innerHTML = tasks.length === 0
-    ? emptyMobileState('You have no tasks assigned for this activity yet.')
-    : tasks.map(t => renderMobileTaskCard(t, agent.id)).join('');
+    ? emptyMobileState('No tasks have been created for this activity yet.')
+    : tasks.map(t => renderMobileTaskCard(t)).join('');
 }
 
 /* ================================================================ */
@@ -262,23 +270,22 @@ function initMobileTasksPage() {
   if (!session) return;
   renderMobileBottomNav('tasks');
 
-  const agent = getAgent(session.agentId);
   const activity = getActivity(session.activityId);
-  const tasks = getTasksForAgent(agent.id).filter(t => t.activityId === activity.id);
+  const tasks = getTasksForActivity(activity.id);
 
-  const rejected = tasks.filter(t => computeTaskAgentStatus(t.id, agent.id) === 'Rejected');
-  const pending = tasks.filter(t => computeTaskAgentStatus(t.id, agent.id) === 'Pending');
-  const completed = tasks.filter(t => computeTaskAgentStatus(t.id, agent.id) === 'Completed');
+  const rejected = tasks.filter(t => computeTaskStatus(t) === 'Rejected');
+  const pending = tasks.filter(t => computeTaskStatus(t) === 'Pending');
+  const completed = tasks.filter(t => computeTaskStatus(t) === 'Completed');
 
   const content = document.getElementById('mobile-tasks-content');
   if (tasks.length === 0) {
-    content.innerHTML = emptyMobileState('You have no tasks assigned for this activity yet.');
+    content.innerHTML = emptyMobileState('No tasks have been created for this activity yet.');
     return;
   }
   content.innerHTML =
-    renderMobileTaskSection('Needs Resubmission', rejected, agent.id) +
-    renderMobileTaskSection('Pending', pending, agent.id) +
-    renderMobileTaskSection('Completed', completed, agent.id);
+    renderMobileTaskSection('Needs Resubmission', rejected) +
+    renderMobileTaskSection('Pending', pending) +
+    renderMobileTaskSection('Completed', completed);
 }
 
 /* ================================================================ */
@@ -301,8 +308,7 @@ function initMobileTaskDetailPage() {
     return;
   }
 
-  const agent = getAgent(session.agentId);
-  const status = computeTaskAgentStatus(task.id, agent.id);
+  const status = computeTaskStatus(task);
 
   const reqTags = [];
   if (task.requirements.photo) reqTags.push('Photo');
@@ -329,7 +335,7 @@ function initMobileTaskDetailPage() {
   if (status === 'Pending') {
     html += `<button class="btn btn-primary btn-block" id="start-task-btn">Start Task</button>`;
   } else if (status === 'Rejected') {
-    const sub = getSubmissionForTaskAgent(task.id, agent.id);
+    const sub = getLatestSubmissionForTask(task.id);
     html += `
       <div class="mobile-block" style="border-color:var(--color-red); background:var(--color-red-bg);">
         <div class="mobile-block-title" style="color:var(--color-red);">Rejected &mdash; Resubmission Needed</div>
@@ -337,12 +343,13 @@ function initMobileTaskDetailPage() {
       </div>
       <button class="btn btn-primary btn-block" id="start-task-btn">Resubmit Task</button>`;
   } else {
-    const sub = getSubmissionForTaskAgent(task.id, agent.id);
+    const sub = getLatestSubmissionForTask(task.id);
     html += `
       <div class="mobile-block">
-        <div class="mobile-block-title">Your Submission</div>
+        <div class="mobile-block-title">Submission</div>
         <div class="captured-photo-frame" style="height:170px; margin:0 0 12px;"><div class="cp-icon">&#128247;</div></div>
         <div class="mobile-kv"><span class="k">Status</span><span class="v">${badge(sub.status)}</span></div>
+        <div class="mobile-kv"><span class="k">Submitted By</span><span class="v">${escapeHtml(sub.mobile)}</span></div>
         <div class="mobile-kv"><span class="k">Submitted</span><span class="v">${formatTimeOnly(sub.submittedAt)}</span></div>
         <div class="mobile-kv"><span class="k">Location</span><span class="v">${escapeHtml(sub.location)}</span></div>
         <div class="mobile-kv"><span class="k">Latitude</span><span class="v">${sub.lat}</span></div>
@@ -485,6 +492,18 @@ function renderLocationStep(task, exec, body) {
   captureLocation(task, exec);
 }
 
+// No real activity coordinates are collected on desktop in this build,
+// so the simulated GPS fix is derived from a small per-activity offset
+// (deterministic hash of the Activity Number) plus jitter, rather than
+// a real stored lat/lng. It is still entirely mock data.
+function baseCoordsForActivity(activityId) {
+  let hash = 0;
+  for (let i = 0; i < activityId.length; i++) hash = (hash * 31 + activityId.charCodeAt(i)) >>> 0;
+  const lat = 18.5 + (hash % 1000) / 10000;
+  const lng = 73.9 + (Math.floor(hash / 1000) % 1000) / 10000;
+  return { lat, lng };
+}
+
 function captureLocation(task, exec) {
   const activity = getActivity(task.activityId);
   const statusBox = document.getElementById('location-status-box');
@@ -498,13 +517,12 @@ function captureLocation(task, exec) {
   if (continueBtn) continueBtn.disabled = true;
 
   setTimeout(() => {
+    const base = baseCoordsForActivity(activity.id);
     const jitter = () => (Math.random() - 0.5) * 0.0006;
-    const lat = (activity.location.lat || 18.5612) + jitter();
-    const lng = (activity.location.lng || 73.9178) + jitter();
     const accuracy = 8 + Math.floor(Math.random() * 12);
 
-    exec.lat = Number(lat.toFixed(4));
-    exec.lng = Number(lng.toFixed(4));
+    exec.lat = Number((base.lat + jitter()).toFixed(4));
+    exec.lng = Number((base.lng + jitter()).toFixed(4));
     exec.location = `${activity.location.name}, ${activity.location.city}`;
     exec.accuracy = accuracy;
     setTaskExecution(exec);
@@ -604,10 +622,13 @@ function finalizeSubmission(task, session) {
   const serverNow = new Date(now.getTime() + 4000);
   const id = nextId('submission');
 
+  // Submissions are an append-only log per task (desktop's Task Detail
+  // shows the full history), so a resubmission after a rejection is
+  // simply a new row — the task's status is driven by whichever
+  // submission is most recent.
   updateState(s => {
-    s.submissions = s.submissions.filter(sub => !(sub.taskId === task.id && sub.agentId === session.agentId));
     s.submissions.push({
-      id, taskId: task.id, activityId: task.activityId, agentId: session.agentId,
+      id, taskId: task.id, activityId: task.activityId, mobile: session.mobile,
       submittedAt: toNaiveIsoLocal(now),
       deviceTimestamp: formatTimeSec(now),
       serverTimestamp: formatTimeSec(serverNow),
@@ -631,7 +652,7 @@ function initSuccessPage() {
 
   const taskId = getQueryParam('taskId');
   const task = getTask(taskId);
-  const sub = getSubmissionForTaskAgent(taskId, session.agentId);
+  const sub = getSubmissionForTaskAndMobile(taskId, session.mobile);
 
   if (!task || !sub) { window.location.href = 'tasks.html'; return; }
 
@@ -644,14 +665,16 @@ function initSuccessPage() {
 /* History                                                             */
 /* ================================================================ */
 
+// History is personal: it lists what THIS mobile number submitted,
+// even though the underlying task status is shared with anyone else
+// logged into the same activity.
 function initHistoryPage() {
   const session = requireAgentSession();
   if (!session) return;
   renderMobileBottomNav('history');
 
-  const agent = getAgent(session.agentId);
   const subs = getState().submissions
-    .filter(s => s.agentId === agent.id && s.activityId === session.activityId)
+    .filter(s => s.mobile === session.mobile && s.activityId === session.activityId)
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 
   const container = document.getElementById('history-list');
@@ -685,13 +708,12 @@ function initProfilePage() {
   if (!session) return;
   renderMobileBottomNav('profile');
 
-  const agent = getAgent(session.agentId);
   const activity = getActivity(session.activityId);
+  const displayName = activity.fieldOfficerName || 'Field Officer';
 
-  document.getElementById('profile-avatar').textContent = initials(agent.name);
-  document.getElementById('profile-name').textContent = agent.name;
-  document.getElementById('profile-mobile').textContent = agent.mobile;
-  document.getElementById('profile-status-badge').innerHTML = badge(agent.status);
+  document.getElementById('profile-avatar').textContent = activity.fieldOfficerName ? initials(activity.fieldOfficerName) : 'FO';
+  document.getElementById('profile-name').textContent = displayName;
+  document.getElementById('profile-mobile').textContent = session.mobile;
   document.getElementById('profile-activity-id').textContent = activity.id;
   document.getElementById('profile-activity-location').textContent = `${activity.location.name}, ${activity.location.city}`;
 

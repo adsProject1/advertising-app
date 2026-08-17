@@ -85,7 +85,7 @@ function resetDemoData() {
 
 function nextId(type) {
   const state = getState();
-  const prefixes = { event: 'EVT', activity: 'ACT', task: 'TSK', agent: 'AGT', submission: 'SUB' };
+  const prefixes = { event: 'EVT', activity: 'ACT', task: 'TSK', submission: 'SUB' };
   const n = state.nextIds[type];
   state.nextIds[type] = n + 1;
   saveState(state);
@@ -95,76 +95,65 @@ function nextId(type) {
 /* ---------------------------------------------------------------- */
 /* Lookups                                                           */
 /* ---------------------------------------------------------------- */
+/* There is no agent/user roster in this build: tasks are assigned    */
+/* offline and field officers simply log into an Activity Number.     */
+/* Submissions are attributed by the mobile number entered at login,  */
+/* not by a stored identity.                                          */
 
 function getEvent(id) { return getState().events.find(e => e.id === id) || null; }
 function getActivity(id) { return getState().activities.find(a => a.id === id) || null; }
 function getTask(id) { return getState().tasks.find(t => t.id === id) || null; }
-function getAgent(id) { return getState().agents.find(a => a.id === id) || null; }
 function getSubmission(id) { return getState().submissions.find(s => s.id === id) || null; }
 
 function getActivitiesForEvent(eventId) { return getState().activities.filter(a => a.eventId === eventId); }
 function getTasksForActivity(activityId) { return getState().tasks.filter(t => t.activityId === activityId); }
 function getSubmissionsForTask(taskId) { return getState().submissions.filter(s => s.taskId === taskId); }
 function getSubmissionsForActivity(activityId) { return getState().submissions.filter(s => s.activityId === activityId); }
-function getSubmissionForTaskAgent(taskId, agentId) {
-  return getState().submissions.find(s => s.taskId === taskId && s.agentId === agentId) || null;
+
+function getLatestSubmissionForTask(taskId) {
+  const subs = getSubmissionsForTask(taskId);
+  if (subs.length === 0) return null;
+  return subs.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
 }
-function getActivitiesForAgent(agentId) { return getState().activities.filter(a => (a.agentIds || []).includes(agentId)); }
-function getTasksForAgent(agentId) { return getState().tasks.filter(t => (t.agentIds || []).includes(agentId)); }
+
+function getSubmissionForTaskAndMobile(taskId, mobile) {
+  const subs = getSubmissionsForTask(taskId).filter(s => s.mobile === mobile);
+  if (subs.length === 0) return null;
+  return subs.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+}
 
 /* ---------------------------------------------------------------- */
 /* Computed status / progress                                        */
 /* ---------------------------------------------------------------- */
 
-// Per-agent execution status for a single task.
-function computeTaskAgentStatus(taskId, agentId) {
-  const sub = getSubmissionForTaskAgent(taskId, agentId);
-  if (!sub) return 'Pending';
-  if (sub.status === 'Rejected') return 'Rejected';
-  return 'Completed';
-}
-
-// Aggregate status for a task across all assigned agents.
+// A task's status is shared across whoever is logged into its activity —
+// there is no per-agent breakdown since tasks are not assigned to
+// individuals. It reflects the most recent submission for the task.
 function computeTaskStatus(task) {
-  const agentIds = task.agentIds || [];
-  if (agentIds.length === 0) return 'Pending';
-  const statuses = agentIds.map(id => computeTaskAgentStatus(task.id, id));
-  const allDone = statuses.every(s => s === 'Completed');
-  if (allDone) return 'Completed';
-  const anyStarted = statuses.some(s => s === 'Completed' || s === 'Rejected');
-  return anyStarted ? 'In Progress' : 'Pending';
+  const latest = getLatestSubmissionForTask(task.id);
+  if (!latest) return 'Pending';
+  return latest.status === 'Rejected' ? 'Rejected' : 'Completed';
 }
 
 function computeActivityStats(activity) {
   const tasks = getTasksForActivity(activity.id);
-  const agentIds = activity.agentIds || [];
   let completed = 0;
   tasks.forEach(t => { if (computeTaskStatus(t) === 'Completed') completed++; });
   const pending = tasks.length - completed;
   const progress = tasks.length === 0 ? 0 : Math.round((completed / tasks.length) * 100);
-  return { agents: agentIds.length, tasks: tasks.length, completed, pending, progress };
+  return { tasks: tasks.length, completed, pending, progress };
 }
 
 function computeEventStats(event) {
   const activities = getActivitiesForEvent(event.id);
   let totalTasks = 0, completedTasks = 0;
-  const agentSet = new Set();
   activities.forEach(a => {
     const stats = computeActivityStats(a);
     totalTasks += stats.tasks;
     completedTasks += stats.completed;
-    (a.agentIds || []).forEach(id => agentSet.add(id));
   });
   const progress = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
-  return { activities: activities.length, agents: agentSet.size, tasks: totalTasks, completed: completedTasks, progress };
-}
-
-function computeAgentStats(agentId) {
-  const activities = getActivitiesForAgent(agentId);
-  const tasks = getTasksForAgent(agentId);
-  let completed = 0;
-  tasks.forEach(t => { if (computeTaskAgentStatus(t.id, agentId) === 'Completed') completed++; });
-  return { activities: activities.length, tasks: tasks.length, completed, active: tasks.length - completed };
+  return { activities: activities.length, tasks: totalTasks, completed: completedTasks, progress };
 }
 
 /* ---------------------------------------------------------------- */
@@ -311,6 +300,8 @@ function closeModal() {
   const root = document.getElementById('modal-root');
   if (root) root.innerHTML = '';
   document.body.classList.remove('modal-open');
+  if (typeof handleLightboxKeydown === 'function') document.removeEventListener('keydown', handleLightboxKeydown);
+  if (typeof LIGHTBOX_STATE !== 'undefined') LIGHTBOX_STATE = null;
 }
 
 function confirmDialog(opts) {
