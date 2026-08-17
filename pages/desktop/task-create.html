@@ -34,15 +34,11 @@
             <div class="field-error" id="task-activity-error"></div>
           </div>
           <div class="form-group">
-            <label>Task Number</label>
-            <input type="text" class="form-control" id="task-number-display" disabled>
-          </div>
-          <div class="form-group">
             <label>Task Type <span class="req">*</span></label>
             <select class="form-control" id="task-type"></select>
             <div class="field-error" id="task-type-error"></div>
           </div>
-          <div class="form-group full">
+          <div class="form-group">
             <label>Task Name <span class="req">*</span></label>
             <input type="text" class="form-control" id="task-name" placeholder="e.g. Afternoon Photoshoot">
             <div class="field-error" id="task-name-error"></div>
@@ -86,13 +82,6 @@
           <label class="checkbox-row"><input type="checkbox" id="req-comment"> Comment</label>
           <label class="checkbox-row"><input type="checkbox" id="req-customer"> Customer Details</label>
         </div>
-      </div>
-
-      <div class="form-section">
-        <div class="form-section-title">Task Assignment</div>
-        <p class="form-hint" style="margin-bottom: var(--sp-3);">Agents are inherited from the selected activity by default. Adjust the selection if this task should be assigned differently.</p>
-        <div class="agent-picker" id="task-agent-picker"></div>
-        <div class="chip-row" id="task-agent-chips" style="margin-top: var(--sp-3);"></div>
       </div>
 
       <div class="form-actions spread">

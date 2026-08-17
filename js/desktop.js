@@ -4,6 +4,12 @@
  * HTML contains static structure with a mount point (or fixed IDs for
  * list pages); this file renders dynamic content, wires up filters,
  * forms and actions, and reads/writes shared state via app.js.
+ *
+ * There is no agent roster in this build. Tasks are assigned offline
+ * (by activity number); a field officer logs into the mobile app with
+ * an Activity Number + mobile number and can see whatever tasks exist
+ * under that activity. Desktop only lets ops optionally note a field
+ * officer's name against an Activity for reference.
  */
 
 /* ================================================================ */
@@ -15,9 +21,7 @@ const NAV_ITEMS = [
   { key: 'events', label: 'Events', icon: '&#128197;', href: 'events.html' },
   { key: 'activities', label: 'Activities', icon: '&#128205;', href: 'activities.html' },
   { key: 'tasks', label: 'Tasks', icon: '&#9989;', href: 'tasks.html' },
-  { key: 'agents', label: 'Agents', icon: '&#128100;', href: 'agents.html' },
   { key: 'submissions', label: 'Submissions', icon: '&#128247;', href: 'submissions.html' },
-  { key: 'reports', label: 'Reports', icon: '&#128202;', href: 'reports.html' },
   { key: 'settings', label: 'Settings', icon: '&#9881;', href: 'settings.html' }
 ];
 
@@ -42,7 +46,6 @@ function initShell(activeKey) {
             </div>
             <div class="user-menu-dropdown" id="user-menu-dropdown">
               <a href="settings.html">Settings</a>
-              <a href="agents.html">Manage Agents</a>
               <div class="divider"></div>
               <a href="../../index.html">Switch Application</a>
             </div>
@@ -91,12 +94,152 @@ function emptyState(opts) {
   </div>`;
 }
 
-function renderMapPlaceholder(lat, lng, extraClass) {
+// No real map coordinates are collected in this build — the box is a
+// purely decorative placeholder labeled with whatever location text
+// is available (per the original wireframe brief: no Maps API).
+function renderMapPlaceholder(labelText, extraClass) {
   return `<div class="placeholder-box map-placeholder ${extraClass || ''}">
     <div class="ph-icon">&#128205;</div>
     <div class="ph-label">Map Placeholder</div>
-    <div class="ph-coords">${(lat !== undefined && lat !== null && lat !== '') ? `${lat}, ${lng}` : 'Coordinates not set'}</div>
+    <div class="ph-coords">${labelText ? escapeHtml(labelText) : 'Location not set'}</div>
   </div>`;
+}
+
+// Sample submission photos live in /assets — reused across submissions
+// since this is a wireframe prototype with no real photo uploads.
+const SUBMISSION_PHOTO_FILES = ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg'];
+const SUBMISSION_PHOTO_BASE = '../../assets/';
+
+function hashStringToInt(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// Deterministic per-submission pick so a given submission's photos stay
+// the same across re-renders, while still looking random/repetitive
+// across different submissions.
+function getSubmissionPhotos(sub) {
+  const h = hashStringToInt(sub.id);
+  const count = 2 + (h % 3); // 2-4 photos per submission
+  const files = [];
+  for (let i = 0; i < count; i++) {
+    files.push(SUBMISSION_PHOTO_FILES[(h + i * 7) % SUBMISSION_PHOTO_FILES.length]);
+  }
+  return files;
+}
+
+function renderPhotoGrid(sub) {
+  const files = getSubmissionPhotos(sub);
+  const srcs = files.map(f => SUBMISSION_PHOTO_BASE + f);
+  return `<div class="photo-grid">
+    ${srcs.map((src, i) => `
+      <div class="photo-card" onclick='openImageLightbox(${JSON.stringify(srcs)}, ${i})'>
+        <img src="${src}" alt="Submission photo ${i + 1}" loading="lazy">
+        <div class="photo-card-label"><span>Photo ${i + 1}</span><span>&#128269;</span></div>
+      </div>`).join('')}
+  </div>`;
+}
+
+/* ---------------------------------------------------------------- */
+/* Fullscreen image lightbox with click-to-zoom + drag-to-pan          */
+/* ---------------------------------------------------------------- */
+
+let LIGHTBOX_STATE = null;
+
+function openImageLightbox(srcs, index) {
+  LIGHTBOX_STATE = { srcs, index, zoomed: false, tx: 0, ty: 0 };
+  const root = ensureModalRoot();
+  root.innerHTML = `
+    <div class="lightbox-overlay" id="lightbox-overlay">
+      <button class="lightbox-close" onclick="closeModal()" aria-label="Close">&times;</button>
+      <div class="lightbox-counter" id="lightbox-counter"></div>
+      ${srcs.length > 1 ? `<button class="lightbox-nav lightbox-prev" onclick="lightboxStep(-1)" aria-label="Previous">&#8249;</button>
+      <button class="lightbox-nav lightbox-next" onclick="lightboxStep(1)" aria-label="Next">&#8250;</button>` : ''}
+      <div class="lightbox-stage" id="lightbox-stage">
+        <img class="lightbox-img" id="lightbox-img" draggable="false">
+      </div>
+      <div class="lightbox-hint">Click image to zoom &middot; drag to pan while zoomed &middot; Esc to close</div>
+    </div>`;
+  document.body.classList.add('modal-open');
+  document.getElementById('lightbox-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'lightbox-overlay' || e.target.id === 'lightbox-stage') closeModal();
+  });
+  document.addEventListener('keydown', handleLightboxKeydown);
+  renderLightboxImage();
+}
+
+function renderLightboxImage() {
+  if (!LIGHTBOX_STATE) return;
+  const img = document.getElementById('lightbox-img');
+  if (!img) return;
+  img.src = LIGHTBOX_STATE.srcs[LIGHTBOX_STATE.index];
+  img.classList.remove('zoomed');
+  img.style.transform = '';
+  LIGHTBOX_STATE.zoomed = false;
+  img.onclick = (e) => { e.stopPropagation(); toggleLightboxZoom(e); };
+  img.onmousedown = lightboxDragStart;
+  document.getElementById('lightbox-counter').textContent = LIGHTBOX_STATE.srcs.length > 1
+    ? `${LIGHTBOX_STATE.index + 1} / ${LIGHTBOX_STATE.srcs.length}` : '';
+}
+
+function toggleLightboxZoom(e) {
+  const img = document.getElementById('lightbox-img');
+  if (!img || !LIGHTBOX_STATE) return;
+  LIGHTBOX_STATE.zoomed = !LIGHTBOX_STATE.zoomed;
+  if (LIGHTBOX_STATE.zoomed) {
+    img.classList.add('zoomed');
+    img.style.transform = 'scale(2.2)';
+  } else {
+    img.classList.remove('zoomed');
+    img.style.transform = '';
+  }
+}
+
+function lightboxStep(delta) {
+  if (!LIGHTBOX_STATE) return;
+  const n = LIGHTBOX_STATE.srcs.length;
+  LIGHTBOX_STATE.index = (LIGHTBOX_STATE.index + delta + n) % n;
+  renderLightboxImage();
+}
+
+function handleLightboxKeydown(e) {
+  if (!LIGHTBOX_STATE) return;
+  if (e.key === 'Escape') closeModal();
+  else if (e.key === 'ArrowLeft') lightboxStep(-1);
+  else if (e.key === 'ArrowRight') lightboxStep(1);
+}
+
+function lightboxDragStart(e) {
+  const img = document.getElementById('lightbox-img');
+  if (!img || !LIGHTBOX_STATE || !LIGHTBOX_STATE.zoomed) return;
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const startTx = LIGHTBOX_STATE.tx, startTy = LIGHTBOX_STATE.ty;
+  function onMove(ev) {
+    LIGHTBOX_STATE.tx = startTx + (ev.clientX - startX);
+    LIGHTBOX_STATE.ty = startTy + (ev.clientY - startY);
+    img.style.transform = `scale(2.2) translate(${LIGHTBOX_STATE.tx / 2.2}px, ${LIGHTBOX_STATE.ty / 2.2}px)`;
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Clickable stat-card row used above list-page filter bars. `cards` is
+// [{ label, value, count, onclick }]; `activeValue` highlights the card
+// whose `value` matches the current filter selection.
+function renderStatFilterCards(containerId, cards, activeValue) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = cards.map(c => `
+    <div class="stat-card stat-card-clickable ${c.value === activeValue ? 'active' : ''}" onclick="${c.onclick}">
+      <div class="stat-label">${escapeHtml(c.label)}</div>
+      <div class="stat-value">${c.count}</div>
+    </div>`).join('');
 }
 
 function optionList(values, selected) {
@@ -109,62 +252,6 @@ function formatTime12(t) {
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12; if (h === 0) h = 12;
   return `${h}:${String(m).padStart(2, '0')} ${ap}`;
-}
-
-function agentNames(ids) {
-  return (ids || []).map(id => { const a = getAgent(id); return a ? a.name : id; });
-}
-
-/* Agent picker (checkbox list + chips), reused on activity-create,
-   task-create and the "Edit Agents" modal on activity-detail. */
-
-const AGENT_PICKER_LINKS = {};
-
-function setupAgentPicker(pickerId, chipsId, selectedIds) {
-  AGENT_PICKER_LINKS[pickerId] = chipsId;
-  renderAgentPicker(pickerId, selectedIds);
-  renderAgentChips(chipsId, pickerId);
-}
-
-function renderAgentPicker(pickerId, selectedIds) {
-  const agents = getState().agents;
-  const el = document.getElementById(pickerId);
-  if (!el) return;
-  el.innerHTML = agents.map(a => `
-    <label class="agent-picker-row">
-      <input type="checkbox" value="${a.id}" ${selectedIds.includes(a.id) ? 'checked' : ''} onchange="syncAgentChips('${pickerId}')">
-      <span class="agent-avatar">${initials(a.name)}</span>
-      <span class="agent-picker-name">${escapeHtml(a.name)}</span>
-      <span class="agent-picker-mobile">${a.mobile}</span>
-    </label>`).join('');
-}
-
-function getCheckedAgentIds(pickerId) {
-  return Array.from(document.querySelectorAll('#' + pickerId + ' input[type=checkbox]:checked')).map(cb => cb.value);
-}
-
-function renderAgentChips(chipsId, pickerId) {
-  const selected = getCheckedAgentIds(pickerId);
-  const el = document.getElementById(chipsId);
-  if (!el) return;
-  if (selected.length === 0) {
-    el.innerHTML = '<span class="text-faint" style="font-size:12.5px;">No agents selected</span>';
-    return;
-  }
-  el.innerHTML = selected.map(id => {
-    const a = getAgent(id);
-    return `<span class="chip">${escapeHtml(a.name)}<button type="button" onclick="removeAgentFromPicker('${pickerId}','${id}','${chipsId}')">&times;</button></span>`;
-  }).join('');
-}
-
-function syncAgentChips(pickerId) {
-  renderAgentChips(AGENT_PICKER_LINKS[pickerId], pickerId);
-}
-
-function removeAgentFromPicker(pickerId, agentId, chipsId) {
-  const cb = document.querySelector('#' + pickerId + ' input[value="' + agentId + '"]');
-  if (cb) cb.checked = false;
-  renderAgentChips(chipsId, pickerId);
 }
 
 /* Element tiles (checkbox grid), reused on event-create / activity-create */
@@ -223,14 +310,12 @@ function initDashboardPage() {
   const totalEvents = state.events.length;
   const activeEvents = state.events.filter(e => e.status === 'Active').length;
   const totalActivities = state.activities.length;
-  const assignedAgents = new Set(state.activities.flatMap(a => a.agentIds || [])).size;
   let pendingTasks = 0, completedTasks = 0;
   state.tasks.forEach(t => { computeTaskStatus(t) === 'Completed' ? completedTasks++ : pendingTasks++; });
 
   document.getElementById('stat-total-events').textContent = totalEvents;
   document.getElementById('stat-active-events').textContent = activeEvents;
   document.getElementById('stat-activities').textContent = totalActivities;
-  document.getElementById('stat-agents').textContent = assignedAgents;
   document.getElementById('stat-pending-tasks').textContent = pendingTasks;
   document.getElementById('stat-completed-tasks').textContent = completedTasks;
 
@@ -241,14 +326,18 @@ function initDashboardPage() {
       <td><span class="table-link">${escapeHtml(ev.name)}</span><br><span class="text-faint mono">${ev.id}</span></td>
       <td>${formatDateRange(ev.dateFrom, ev.dateTo)}</td>
       <td class="num">${stats.activities}</td>
-      <td class="num">${stats.agents}</td>
       <td class="num">${stats.tasks}</td>
       <td>${progressBar(stats.progress)}</td>
       <td>${badge(ev.status)}</td>
     </tr>`;
   }).join('');
 
-  const todayActivities = state.activities.filter(a => a.startDate <= DEMO_TODAY && DEMO_TODAY <= a.endDate);
+  // Activities no longer carry their own dates — "today" is judged by
+  // the parent Event's schedule.
+  const todayActivities = state.activities.filter(a => {
+    const ev = getEvent(a.eventId);
+    return ev && ev.dateFrom <= DEMO_TODAY && DEMO_TODAY <= ev.dateTo;
+  });
   const todayList = document.getElementById('today-activities-list');
   if (todayActivities.length === 0) {
     todayList.innerHTML = emptyState({ icon: '&#128197;', title: 'No Activities Today', message: 'There are no activities scheduled for today.' });
@@ -264,7 +353,6 @@ function initDashboardPage() {
           </div>
         </div>
         <div class="today-activity-stats">
-          <span><strong>${stats.agents}</strong> Agents</span>
           <span><strong>${stats.tasks}</strong> Tasks</span>
           <span><strong>${stats.completed}</strong> Completed</span>
           <span><strong>${stats.pending}</strong> Pending</span>
@@ -280,17 +368,30 @@ function initDashboardPage() {
 /* ================================================================ */
 
 function initEventsListPage() {
-  const state = getState();
-  const citySel = document.getElementById('filter-city');
-  const cities = [...new Set(state.events.map(e => e.city))].sort();
-  citySel.innerHTML = '<option value="">All Cities</option>' + optionList(cities);
   document.getElementById('filter-status').innerHTML = '<option value="">All Statuses</option>' + optionList(EVENT_STATUSES);
 
-  ['filter-search', 'filter-status', 'filter-date-from', 'filter-date-to', 'filter-city'].forEach(id => {
+  ['filter-search', 'filter-status', 'filter-date-from', 'filter-date-to'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderEventsTable);
     document.getElementById(id).addEventListener('change', renderEventsTable);
   });
   renderEventsTable();
+}
+
+function setEventsStatusFilter(status) {
+  document.getElementById('filter-status').value = status;
+  renderEventsTable();
+}
+
+function renderEventsStatCards(state, activeStatus) {
+  const statuses = EVENT_STATUSES.filter(s => s !== 'Draft');
+  const cards = [
+    { label: 'Total Events', value: '', count: state.events.length, onclick: "setEventsStatusFilter('')" },
+    ...statuses.map(s => ({
+      label: s, value: s, count: state.events.filter(e => e.status === s).length,
+      onclick: `setEventsStatusFilter('${s}')`
+    }))
+  ];
+  renderStatFilterCards('events-stat-cards', cards, activeStatus);
 }
 
 function renderEventsTable() {
@@ -299,12 +400,12 @@ function renderEventsTable() {
   const status = document.getElementById('filter-status').value;
   const dateFrom = document.getElementById('filter-date-from').value;
   const dateTo = document.getElementById('filter-date-to').value;
-  const city = document.getElementById('filter-city').value;
+
+  renderEventsStatCards(state, status);
 
   let rows = state.events.filter(e => {
     if (search && !(e.name.toLowerCase().includes(search) || e.id.toLowerCase().includes(search))) return false;
     if (status && e.status !== status) return false;
-    if (city && e.city !== city) return false;
     if (dateFrom && e.dateTo < dateFrom) return false;
     if (dateTo && e.dateFrom > dateTo) return false;
     return true;
@@ -336,7 +437,7 @@ function renderEventsTable() {
         <div class="row-actions">
           <a class="btn btn-secondary btn-sm" href="event-detail.html?id=${ev.id}">View</a>
           <a class="btn btn-secondary btn-sm" href="event-create.html?edit=${ev.id}">Edit</a>
-          <button class="btn btn-ghost btn-sm" onclick="handleDeleteEvent('${ev.id}')">Delete</button>
+          <button class="btn btn-danger btn-sm" onclick="handleDeleteEvent('${ev.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -384,11 +485,6 @@ function initEventCreatePage() {
     document.getElementById('event-product').value = existing.product || '';
     document.getElementById('event-date-from').value = existing.dateFrom;
     document.getElementById('event-date-to').value = existing.dateTo;
-    document.getElementById('event-city').value = existing.city || '';
-    document.getElementById('event-state').value = existing.state || '';
-    document.getElementById('event-audience').value = existing.targetAudience || '';
-    document.getElementById('event-footfall').value = existing.expectedFootfall || '';
-    document.getElementById('event-instructions').value = existing.instructions || '';
     document.getElementById('create-event-btn').textContent = 'Save Changes';
   }
 
@@ -431,11 +527,6 @@ function submitEventForm(status, existing) {
     brand: document.getElementById('event-brand').value.trim(),
     product: document.getElementById('event-product').value.trim(),
     dateFrom, dateTo,
-    city: document.getElementById('event-city').value.trim(),
-    state: document.getElementById('event-state').value.trim(),
-    targetAudience: document.getElementById('event-audience').value.trim(),
-    expectedFootfall: Number(document.getElementById('event-footfall').value) || 0,
-    instructions: document.getElementById('event-instructions').value.trim(),
     elements: getCheckedValues('event-elements-tiles'),
     status: status
   };
@@ -486,7 +577,6 @@ function initEventDetailPage() {
 
 function renderEventDetail(ev) {
   const root = document.getElementById('page-root');
-  const stats = computeEventStats(ev);
   const activities = getActivitiesForEvent(ev.id);
 
   root.innerHTML = `
@@ -494,12 +584,9 @@ function renderEventDetail(ev) {
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
-          <div class="detail-eyebrow mono">${ev.id}</div>
           <h1>${escapeHtml(ev.name)}</h1>
           <div class="detail-sub">
             <span>${formatDateRange(ev.dateFrom, ev.dateTo)}</span>
-            <span>&middot;</span>
-            <span>${escapeHtml(ev.city)}${ev.state ? ', ' + escapeHtml(ev.state) : ''}</span>
             <span>&middot;</span>
             ${badge(ev.status)}
           </div>
@@ -507,76 +594,53 @@ function renderEventDetail(ev) {
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="event-create.html?edit=${ev.id}">Edit Event</a>
           <a class="btn btn-primary" href="activity-create.html?eventId=${ev.id}">+ Add Activity</a>
+          <button class="btn btn-danger" onclick="handleDeleteEvent('${ev.id}')">Delete Event</button>
+        </div>
+      </div>
+      <div class="kv-grid" style="margin-top: var(--sp-5);">
+        <div class="kv-item"><div class="kv-label">Brand / Product</div><div class="kv-value">${[ev.brand, ev.product].filter(Boolean).map(escapeHtml).join(' &mdash; ') || '&mdash;'}</div></div>
+        <div class="kv-item"><div class="kv-label">Description</div><div class="kv-value">${ev.description ? escapeHtml(ev.description) : '&mdash;'}</div></div>
+        <div class="kv-item">
+          <div class="kv-label">Event Elements</div>
+          <div class="tag-list" style="margin-top:4px;">${(ev.elements || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
         </div>
       </div>
     </div>
 
-    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom: var(--sp-5);">
-      <div class="stat-card"><div class="stat-label">Activities</div><div class="stat-value">${stats.activities}</div></div>
-      <div class="stat-card"><div class="stat-label">Assigned Agents</div><div class="stat-value">${stats.agents}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Tasks</div><div class="stat-value">${stats.tasks}</div></div>
-      <div class="stat-card"><div class="stat-label">Progress</div><div class="stat-value">${stats.progress}%</div></div>
-    </div>
-
-    <div class="detail-layout">
-      <div>
-        <div class="section-title-row"><h2>Activities</h2></div>
-        <div id="event-activities-grid"></div>
-      </div>
-      <div>
-        <div class="card">
-          <div class="card-header"><h3>Event Information</h3></div>
-          <div class="card-body">
-            <div class="kv-grid" style="grid-template-columns:1fr;">
-              <div class="kv-item"><div class="kv-label">Brand / Campaign</div><div class="kv-value">${escapeHtml(ev.brand || '&mdash;')}</div></div>
-              <div class="kv-item"><div class="kv-label">Product</div><div class="kv-value">${escapeHtml(ev.product || '&mdash;')}</div></div>
-              <div class="kv-item"><div class="kv-label">Target Audience</div><div class="kv-value">${escapeHtml(ev.targetAudience || '&mdash;')}</div></div>
-              <div class="kv-item"><div class="kv-label">Expected Footfall</div><div class="kv-value">${ev.expectedFootfall ? ev.expectedFootfall.toLocaleString() : '&mdash;'}</div></div>
-              <div class="kv-item"><div class="kv-label">Description</div><div class="kv-value">${escapeHtml(ev.description || '&mdash;')}</div></div>
-              <div class="kv-item"><div class="kv-label">Special Instructions</div><div class="kv-value">${escapeHtml(ev.instructions || '&mdash;')}</div></div>
-              <div class="kv-item">
-                <div class="kv-label">Event Elements</div>
-                <div class="tag-list" style="margin-top:4px;">${(ev.elements || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top: var(--sp-4);">
-          <button class="btn btn-ghost btn-sm" style="color:var(--color-red);" onclick="handleDeleteEvent('${ev.id}')">Delete Event</button>
-        </div>
-      </div>
-    </div>
+    <div class="section-title-row"><h2>Activities</h2></div>
+    <div id="event-activities-table"></div>
   `;
 
-  const grid = document.getElementById('event-activities-grid');
+  const wrap = document.getElementById('event-activities-table');
   if (activities.length === 0) {
-    grid.innerHTML = emptyState({ icon: '&#128205;', title: 'No Activities Found', message: 'This event does not have any activities yet.', actionLabel: '+ Create Activity', actionHref: `activity-create.html?eventId=${ev.id}` });
+    wrap.innerHTML = emptyState({ icon: '&#128205;', title: 'No Activities Found', message: 'This event does not have any activities yet.', actionLabel: '+ Create Activity', actionHref: `activity-create.html?eventId=${ev.id}` });
   } else {
-    grid.innerHTML = `<div class="card-grid">${activities.map(a => {
-      const astats = computeActivityStats(a);
-      return `<div class="entity-card">
-        <div class="entity-card-top">
-          <div>
-            <div class="entity-card-id mono">${a.id}</div>
-            <div class="entity-card-title">${escapeHtml(a.name)}</div>
-          </div>
-          ${badge(a.status)}
-        </div>
-        <div class="entity-card-meta">
-          <span>${formatDateRange(a.startDate, a.endDate)}</span>
-          <span>${escapeHtml(a.location.city)}</span>
-        </div>
-        <div class="entity-card-stats">
-          <span><strong>${astats.agents}</strong>Agents</span>
-          <span><strong>${astats.tasks}</strong>Tasks</span>
-          <span><strong>${astats.progress}%</strong>Complete</span>
-        </div>
-        <div class="entity-card-footer">
-          ${progressBar(astats.progress, { hideLabel: true })}
-          <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View Activity</a>
-        </div>
-      </div>`;
-    }).join('')}</div>`;
+    wrap.innerHTML = `<div class="table-wrap card">
+      <table class="data-table">
+        <thead><tr>
+          <th>Activity No.</th><th>Location</th><th>Type</th><th>Field Officer</th><th class="num">Tasks</th><th>Progress</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${activities.map(a => {
+          const astats = computeActivityStats(a);
+          return `<tr>
+            <td><a class="table-link mono" href="activity-detail.html?id=${a.id}">${a.id}</a></td>
+            <td>${escapeHtml(a.location.name)}, ${escapeHtml(a.location.city)}</td>
+            <td>${escapeHtml(a.type)}</td>
+            <td>${a.fieldOfficerName ? escapeHtml(a.fieldOfficerName) : '<span class="text-faint">&mdash;</span>'}</td>
+            <td class="num">${astats.tasks}</td>
+            <td>${progressBar(astats.progress)}</td>
+            <td>${badge(a.status)}</td>
+            <td>
+              <div class="row-actions">
+                <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
+                <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
+                <button class="btn btn-danger btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
   }
 }
 
@@ -590,16 +654,32 @@ function initActivitiesListPage() {
   document.getElementById('filter-city').innerHTML = '<option value="">All Cities</option>' + optionList([...new Set(state.activities.map(a => a.location.city))].sort());
   document.getElementById('filter-type').innerHTML = '<option value="">All Types</option>' + optionList(ACTIVITY_TYPES);
   document.getElementById('filter-status').innerHTML = '<option value="">All Statuses</option>' + optionList(ACTIVITY_STATUSES);
-  document.getElementById('filter-agent').innerHTML = '<option value="">All Agents</option>' + state.agents.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
 
   const presetEvent = getQueryParam('eventId');
   if (presetEvent) document.getElementById('filter-event').value = presetEvent;
 
-  ['filter-search', 'filter-event', 'filter-city', 'filter-type', 'filter-status', 'filter-agent'].forEach(id => {
+  ['filter-search', 'filter-event', 'filter-city', 'filter-type', 'filter-status'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderActivitiesTable);
     document.getElementById(id).addEventListener('change', renderActivitiesTable);
   });
   renderActivitiesTable();
+}
+
+function setActivitiesStatusFilter(status) {
+  document.getElementById('filter-status').value = status;
+  renderActivitiesTable();
+}
+
+function renderActivitiesStatCards(state, activeStatus) {
+  const statuses = ACTIVITY_STATUSES.filter(s => s !== 'Draft');
+  const cards = [
+    { label: 'Total Activities', value: '', count: state.activities.length, onclick: "setActivitiesStatusFilter('')" },
+    ...statuses.map(s => ({
+      label: s, value: s, count: state.activities.filter(a => a.status === s).length,
+      onclick: `setActivitiesStatusFilter('${s}')`
+    }))
+  ];
+  renderStatFilterCards('activities-stat-cards', cards, activeStatus);
 }
 
 function renderActivitiesTable() {
@@ -609,7 +689,8 @@ function renderActivitiesTable() {
   const city = document.getElementById('filter-city').value;
   const type = document.getElementById('filter-type').value;
   const status = document.getElementById('filter-status').value;
-  const agentId = document.getElementById('filter-agent').value;
+
+  renderActivitiesStatCards(state, status);
 
   let rows = state.activities.filter(a => {
     if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
@@ -617,7 +698,6 @@ function renderActivitiesTable() {
     if (city && a.location.city !== city) return false;
     if (type && a.type !== type) return false;
     if (status && a.status !== status) return false;
-    if (agentId && !(a.agentIds || []).includes(agentId)) return false;
     return true;
   });
 
@@ -642,7 +722,7 @@ function renderActivitiesTable() {
       <td>${ev ? escapeHtml(ev.name) : '&mdash;'}</td>
       <td>${escapeHtml(a.location.name)}, ${escapeHtml(a.location.city)}</td>
       <td>${escapeHtml(a.type)}</td>
-      <td class="num">${stats.agents}</td>
+      <td>${a.fieldOfficerName ? escapeHtml(a.fieldOfficerName) : '<span class="text-faint">&mdash;</span>'}</td>
       <td class="num">${stats.tasks}</td>
       <td>${progressBar(stats.progress)}</td>
       <td>${badge(a.status)}</td>
@@ -650,7 +730,7 @@ function renderActivitiesTable() {
         <div class="row-actions">
           <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
           <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
-          <button class="btn btn-ghost btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
+          <button class="btn btn-danger btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -689,72 +769,40 @@ function initActivityCreatePage() {
   document.getElementById('activity-type').innerHTML = optionList(ACTIVITY_TYPES);
 
   renderElementTiles('activity-elements-tiles', ACTIVITY_ELEMENTS, existing ? existing.elements : ['Branding', 'Product Display']);
-  setupAgentPicker('activity-agent-picker', 'activity-agent-chips', existing ? existing.agentIds : []);
 
   if (existing) {
     document.getElementById('page-title').textContent = 'Edit Activity';
-    document.getElementById('activity-number-display').textContent = existing.id;
     document.getElementById('activity-event').value = existing.eventId;
     document.getElementById('activity-name').value = existing.name;
     document.getElementById('activity-description').value = existing.description || '';
     document.getElementById('activity-type').value = existing.type;
     document.getElementById('activity-location-name').value = existing.location.name;
-    document.getElementById('activity-address').value = existing.location.address || '';
+    document.getElementById('activity-address-line1').value = existing.location.addressLine1 || '';
+    document.getElementById('activity-address-line2').value = existing.location.addressLine2 || '';
     document.getElementById('activity-city').value = existing.location.city;
-    document.getElementById('activity-state').value = existing.location.state || '';
     document.getElementById('activity-pin').value = existing.location.pin || '';
-    document.getElementById('activity-lat').value = existing.location.lat || '';
-    document.getElementById('activity-lng').value = existing.location.lng || '';
-    document.getElementById('activity-start-date').value = existing.startDate;
-    document.getElementById('activity-end-date').value = existing.endDate;
-    document.getElementById('activity-start-time').value = existing.startTime || '';
-    document.getElementById('activity-end-time').value = existing.endTime || '';
+    document.getElementById('activity-field-officer').value = existing.fieldOfficerName || '';
     document.getElementById('create-activity-btn').textContent = 'Save Changes';
   } else {
-    document.getElementById('activity-number-display').textContent = 'Auto-generated on save';
     if (presetEventId) document.getElementById('activity-event').value = presetEventId;
   }
-
-  updateMapPreview();
-  document.getElementById('activity-lat').addEventListener('input', updateMapPreview);
-  document.getElementById('activity-lng').addEventListener('input', updateMapPreview);
 
   document.getElementById('cancel-btn').addEventListener('click', () => {
     window.location.href = existing ? `activity-detail.html?id=${existing.id}` : (presetEventId ? `event-detail.html?id=${presetEventId}` : 'activities.html');
   });
   document.getElementById('save-draft-btn').addEventListener('click', () => submitActivityForm('Draft', existing));
-  document.getElementById('create-activity-btn').addEventListener('click', () => submitActivityForm(null, existing));
+  document.getElementById('create-activity-btn').addEventListener('click', () => submitActivityForm(existing ? existing.status : 'Active', existing));
 }
 
-function updateMapPreview() {
-  const lat = document.getElementById('activity-lat').value;
-  const lng = document.getElementById('activity-lng').value;
-  document.getElementById('activity-map-preview').innerHTML = renderMapPlaceholder(lat, lng);
-}
-
-function submitActivityForm(forcedStatus, existing) {
+function submitActivityForm(status, existing) {
   const valid = validateFields([
     { id: 'activity-event', message: 'Event is required.' },
     { id: 'activity-name', message: 'Activity Name is required.' },
     { id: 'activity-type', message: 'Activity Type is required.' },
     { id: 'activity-location-name', message: 'Location Name is required.' },
-    { id: 'activity-city', message: 'City is required.' },
-    { id: 'activity-start-date', message: 'Start Date is required.' },
-    { id: 'activity-end-date', message: 'End Date is required.' }
+    { id: 'activity-city', message: 'City is required.' }
   ]);
   if (!valid) return;
-
-  const startDate = document.getElementById('activity-start-date').value;
-  const endDate = document.getElementById('activity-end-date').value;
-  if (endDate < startDate) {
-    document.getElementById('activity-end-date-error').textContent = 'End Date must be after Start Date.';
-    return;
-  }
-
-  let status = forcedStatus;
-  if (!status) {
-    status = (startDate <= DEMO_TODAY && DEMO_TODAY <= endDate) ? 'Active' : 'Scheduled';
-  }
 
   const data = {
     eventId: document.getElementById('activity-event').value,
@@ -763,18 +811,13 @@ function submitActivityForm(forcedStatus, existing) {
     type: document.getElementById('activity-type').value,
     location: {
       name: document.getElementById('activity-location-name').value.trim(),
-      address: document.getElementById('activity-address').value.trim(),
+      addressLine1: document.getElementById('activity-address-line1').value.trim(),
+      addressLine2: document.getElementById('activity-address-line2').value.trim(),
       city: document.getElementById('activity-city').value.trim(),
-      state: document.getElementById('activity-state').value.trim(),
-      pin: document.getElementById('activity-pin').value.trim(),
-      lat: document.getElementById('activity-lat').value ? Number(document.getElementById('activity-lat').value) : null,
-      lng: document.getElementById('activity-lng').value ? Number(document.getElementById('activity-lng').value) : null
+      pin: document.getElementById('activity-pin').value.trim()
     },
-    startDate, endDate,
-    startTime: document.getElementById('activity-start-time').value,
-    endTime: document.getElementById('activity-end-time').value,
     elements: getCheckedValues('activity-elements-tiles'),
-    agentIds: getCheckedAgentIds('activity-agent-picker'),
+    fieldOfficerName: document.getElementById('activity-field-officer').value.trim(),
     status
   };
 
@@ -799,7 +842,7 @@ function showActivitySuccess(id, eventId) {
       <div class="success-icon">&#10003;</div>
       <h2>Activity Created Successfully</h2>
       <div class="success-id mono">Activity Number: ${id}</div>
-      <p>Agents can now be assigned and tasks can be created for this activity.</p>
+      <p>Share this Activity Number with the field officer &mdash; they'll use it to log into the mobile app. Tasks can now be created for this activity.</p>
       <div class="success-panel-actions">
         <a class="btn btn-secondary" href="event-detail.html?id=${eventId}">Back to Event</a>
         <a class="btn btn-primary" href="activity-detail.html?id=${id}">View Activity</a>
@@ -825,7 +868,6 @@ function initActivityDetailPage() {
 function renderActivityDetail(a) {
   const root = document.getElementById('page-root');
   const ev = getEvent(a.eventId);
-  const stats = computeActivityStats(a);
   const tasks = getTasksForActivity(a.id);
 
   root.innerHTML = `
@@ -833,12 +875,13 @@ function renderActivityDetail(a) {
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
-          <div class="detail-eyebrow mono">${a.id}</div>
           <h1>${escapeHtml(a.name)}</h1>
           <div class="detail-sub">
             <a href="event-detail.html?id=${a.eventId}">${ev ? escapeHtml(ev.name) : a.eventId}</a>
             <span>&middot;</span>
-            <span>${formatDateRange(a.startDate, a.endDate)}</span>
+            <span>${escapeHtml(a.location.city)}</span>
+            <span>&middot;</span>
+            <span>${escapeHtml(a.type)}</span>
             <span>&middot;</span>
             ${badge(a.status)}
           </div>
@@ -846,116 +889,42 @@ function renderActivityDetail(a) {
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="activity-create.html?edit=${a.id}">Edit Activity</a>
           <a class="btn btn-primary" href="task-create.html?activityId=${a.id}">+ Add Task</a>
+          <button class="btn btn-danger" onclick="handleDeleteActivity('${a.id}')">Delete Activity</button>
         </div>
       </div>
-    </div>
-
-    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom: var(--sp-5);">
-      <div class="stat-card"><div class="stat-label">Assigned Agents</div><div class="stat-value">${stats.agents}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Tasks</div><div class="stat-value">${stats.tasks}</div></div>
-      <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value">${stats.completed}</div></div>
-      <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value">${stats.pending}</div></div>
-    </div>
-
-    <div class="detail-layout">
-      <div>
-        <div class="section-title-row"><h2>Assigned Agents</h2><button class="btn btn-secondary btn-sm" onclick="openEditAgentsModal('${a.id}')">Edit Agents</button></div>
-        <div id="activity-agents-table"></div>
-
-        <div class="section-title-row" style="margin-top: var(--sp-6);"><h2>Tasks</h2><a class="btn btn-secondary btn-sm" href="task-create.html?activityId=${a.id}">+ Add Task</a></div>
-        <div id="activity-tasks-table"></div>
-      </div>
-      <div>
-        <div class="card">
-          <div class="card-header"><h3>Activity Details</h3></div>
-          <div class="card-body">
-            <div class="kv-grid" style="grid-template-columns:1fr;">
-              <div class="kv-item"><div class="kv-label">Activity Type</div><div class="kv-value">${escapeHtml(a.type)}</div></div>
-              <div class="kv-item"><div class="kv-label">Location</div><div class="kv-value">${escapeHtml(a.location.name)}</div></div>
-              <div class="kv-item"><div class="kv-label">Address</div><div class="kv-value">${escapeHtml(a.location.address || '&mdash;')}, ${escapeHtml(a.location.city)} ${escapeHtml(a.location.pin || '')}</div></div>
-              <div class="kv-item"><div class="kv-label">Schedule</div><div class="kv-value">${formatDateRange(a.startDate, a.endDate)}${a.startTime ? ` &middot; ${a.startTime}&ndash;${a.endTime}` : ''}</div></div>
-              <div class="kv-item">
-                <div class="kv-label">Activity Elements</div>
-                <div class="tag-list" style="margin-top:4px;">${(a.elements || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
-              </div>
-            </div>
-            <div class="divider"></div>
-            ${renderMapPlaceholder(a.location.lat, a.location.lng)}
-          </div>
-        </div>
-        <div style="margin-top: var(--sp-4);">
-          <button class="btn btn-ghost btn-sm" style="color:var(--color-red);" onclick="handleDeleteActivity('${a.id}')">Delete Activity</button>
+      <div class="kv-grid" style="margin-top: var(--sp-5);">
+        <div class="kv-item"><div class="kv-label">Activity Number</div><div class="kv-value mono">${a.id}</div></div>
+        <div class="kv-item"><div class="kv-label">Field Officer</div><div class="kv-value">${a.fieldOfficerName ? escapeHtml(a.fieldOfficerName) : '&mdash;'}</div></div>
+        <div class="kv-item"><div class="kv-label">Location</div><div class="kv-value">${escapeHtml(a.location.name)}${[a.location.addressLine1, a.location.addressLine2].filter(Boolean).length ? ', ' + [a.location.addressLine1, a.location.addressLine2].filter(Boolean).map(escapeHtml).join(', ') : ''}, ${escapeHtml(a.location.city)} ${escapeHtml(a.location.pin || '')}</div></div>
+        <div class="kv-item">
+          <div class="kv-label">Activity Elements</div>
+          <div class="tag-list" style="margin-top:4px;">${(a.elements || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
         </div>
       </div>
+      <p class="form-hint" style="margin: var(--sp-3) 0 0;">Field officers log into the mobile app using this Activity Number and their mobile number &mdash; no separate agent assignment is required.</p>
     </div>
+
+    <div class="section-title-row"><h2>Tasks</h2><a class="btn btn-secondary btn-sm" href="task-create.html?activityId=${a.id}">+ Add Task</a></div>
+    <div id="activity-tasks-table"></div>
   `;
-
-  const agentsTableEl = document.getElementById('activity-agents-table');
-  if ((a.agentIds || []).length === 0) {
-    agentsTableEl.innerHTML = emptyState({ icon: '&#128100;', title: 'No Agents Assigned', message: 'Assign agents to this activity so they can execute tasks.', actionLabel: 'Edit Agents', actionOnClick: `openEditAgentsModal('${a.id}')` });
-  } else {
-    agentsTableEl.innerHTML = `<div class="table-wrap card"><table class="data-table"><thead><tr>
-      <th>Agent</th><th>Mobile</th><th class="num">Tasks Assigned</th><th class="num">Completed</th><th>Status</th>
-    </tr></thead><tbody>
-      ${a.agentIds.map(id => {
-        const agent = getAgent(id);
-        if (!agent) return '';
-        const agentTasks = tasks.filter(t => (t.agentIds || []).includes(id));
-        const completed = agentTasks.filter(t => computeTaskAgentStatus(t.id, id) === 'Completed').length;
-        return `<tr>
-          <td><a class="table-link" href="agent-detail.html?id=${agent.id}">${escapeHtml(agent.name)}</a></td>
-          <td class="mono">${agent.mobile}</td>
-          <td class="num">${agentTasks.length}</td>
-          <td class="num">${completed}</td>
-          <td>${badge(agent.status)}</td>
-        </tr>`;
-      }).join('')}
-    </tbody></table></div>`;
-  }
 
   const tasksTableEl = document.getElementById('activity-tasks-table');
   if (tasks.length === 0) {
     tasksTableEl.innerHTML = emptyState({ icon: '&#9989;', title: 'No Tasks Found', message: 'Create the first task for this activity.', actionLabel: '+ Create Task', actionHref: `task-create.html?activityId=${a.id}` });
   } else {
     tasksTableEl.innerHTML = `<div class="table-wrap card"><table class="data-table"><thead><tr>
-      <th>Task No.</th><th>Task Name</th><th>Type</th><th>Schedule</th><th class="num">Agents</th><th>Status</th><th></th>
+      <th>Task No.</th><th>Task Name</th><th>Type</th><th>Schedule</th><th>Status</th><th></th>
     </tr></thead><tbody>
       ${tasks.map(t => `<tr>
         <td class="mono">${t.id}</td>
         <td><a class="table-link" href="task-detail.html?id=${t.id}">${escapeHtml(t.name)}</a></td>
         <td>${escapeHtml(t.type)}</td>
-        <td>${escapeHtml(t.scheduledTime || '&mdash;')}</td>
-        <td class="num">${(t.agentIds || []).length}</td>
+        <td>${t.scheduledTime ? escapeHtml(t.scheduledTime) : '&mdash;'}</td>
         <td>${badge(computeTaskStatus(t))}</td>
         <td><a class="btn btn-secondary btn-sm" href="task-detail.html?id=${t.id}">View</a></td>
       </tr>`).join('')}
     </tbody></table></div>`;
   }
-}
-
-function openEditAgentsModal(activityId) {
-  const a = getActivity(activityId);
-  openModal(`
-    <div class="modal-header"><h3>Edit Assigned Agents</h3></div>
-    <div class="modal-body">
-      <p style="margin-bottom: var(--sp-3);">Select the agents assigned to <strong>${a.id} &mdash; ${escapeHtml(a.name)}</strong>.</p>
-      <div class="agent-picker" id="modal-agent-picker"></div>
-      <div class="chip-row" id="modal-agent-chips" style="margin-top: var(--sp-3);"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveActivityAgents('${activityId}')">Save Agents</button>
-    </div>
-  `, { wide: true });
-  setupAgentPicker('modal-agent-picker', 'modal-agent-chips', a.agentIds || []);
-}
-
-function saveActivityAgents(activityId) {
-  const ids = getCheckedAgentIds('modal-agent-picker');
-  updateState(s => { s.activities.find(a => a.id === activityId).agentIds = ids; });
-  closeModal();
-  showToast('&#10003; Assigned agents updated');
-  renderActivityDetail(getActivity(activityId));
 }
 
 /* ================================================================ */
@@ -978,12 +947,30 @@ function initTasksListPage() {
   renderTasksTable();
 }
 
+function setTasksStatusFilter(status) {
+  document.getElementById('filter-status').value = status;
+  renderTasksTable();
+}
+
+function renderTasksStatCards(state, activeStatus) {
+  const cards = [
+    { label: 'Total Tasks', value: '', count: state.tasks.length, onclick: "setTasksStatusFilter('')" },
+    ...TASK_STATUSES.map(s => ({
+      label: s, value: s, count: state.tasks.filter(t => computeTaskStatus(t) === s).length,
+      onclick: `setTasksStatusFilter('${s}')`
+    }))
+  ];
+  renderStatFilterCards('tasks-stat-cards', cards, activeStatus);
+}
+
 function renderTasksTable() {
   const state = getState();
   const search = (document.getElementById('filter-search').value || '').toLowerCase();
   const activityId = document.getElementById('filter-activity').value;
   const type = document.getElementById('filter-type').value;
   const status = document.getElementById('filter-status').value;
+
+  renderTasksStatCards(state, status);
 
   let rows = state.tasks.filter(t => {
     if (search && !(t.name.toLowerCase().includes(search) || t.id.toLowerCase().includes(search))) return false;
@@ -1011,14 +998,13 @@ function renderTasksTable() {
     <td class="mono"><a href="activity-detail.html?id=${t.activityId}">${t.activityId}</a></td>
     <td>${escapeHtml(t.name)}</td>
     <td>${escapeHtml(t.type)}</td>
-    <td>${escapeHtml(t.scheduledTime || '&mdash;')}</td>
-    <td class="num">${(t.agentIds || []).length}</td>
+    <td>${t.scheduledTime ? escapeHtml(t.scheduledTime) : '&mdash;'}</td>
     <td>${badge(computeTaskStatus(t))}</td>
     <td>
       <div class="row-actions">
         <a class="btn btn-secondary btn-sm" href="task-detail.html?id=${t.id}">View</a>
         <a class="btn btn-secondary btn-sm" href="task-create.html?edit=${t.id}">Edit</a>
-        <button class="btn btn-ghost btn-sm" onclick="handleDeleteTask('${t.id}')">Delete</button>
+        <button class="btn btn-danger btn-sm" onclick="handleDeleteTask('${t.id}')">Delete</button>
       </div>
     </td>
   </tr>`).join('');
@@ -1070,9 +1056,7 @@ function initTaskCreatePage() {
 
   document.getElementById('task-event').addEventListener('change', () => {
     populateActivityDropdown(document.getElementById('task-event').value, null);
-    refreshInheritedAgents();
   });
-  document.getElementById('task-activity').addEventListener('change', refreshInheritedAgents);
 
   TASK_EXEC_WINDOWS = existing && existing.executionType === 'Multiple Times Per Day' && existing.executionWindows
     ? existing.executionWindows.slice()
@@ -1088,7 +1072,6 @@ function initTaskCreatePage() {
 
   if (existing) {
     document.getElementById('page-title').textContent = 'Edit Task';
-    document.getElementById('task-number-display').textContent = existing.id;
     document.getElementById('task-name').value = existing.name;
     document.getElementById('task-description').value = existing.description || '';
     document.getElementById('task-type').value = existing.type;
@@ -1099,12 +1082,9 @@ function initTaskCreatePage() {
     document.getElementById('req-comment').checked = !!existing.requirements.comment;
     document.getElementById('req-customer').checked = !!existing.requirements.customerDetails;
     document.getElementById('create-task-btn').textContent = 'Save Changes';
-    setupAgentPicker('task-agent-picker', 'task-agent-chips', existing.agentIds || []);
   } else {
-    document.getElementById('task-number-display').textContent = 'Auto-generated on save';
     document.getElementById('task-type').addEventListener('change', applyDefaultRequirements);
     applyDefaultRequirements();
-    refreshInheritedAgents();
   }
 
   document.getElementById('add-window-btn').addEventListener('click', () => {
@@ -1124,12 +1104,6 @@ function populateActivityDropdown(eventId, selectedActivityId) {
   const sel = document.getElementById('task-activity');
   sel.innerHTML = activities.map(a => `<option value="${a.id}">${a.id} &mdash; ${escapeHtml(a.name)}</option>`).join('');
   if (selectedActivityId && activities.some(a => a.id === selectedActivityId)) sel.value = selectedActivityId;
-}
-
-function refreshInheritedAgents() {
-  const activityId = document.getElementById('task-activity').value;
-  const act = getActivity(activityId);
-  setupAgentPicker('task-agent-picker', 'task-agent-chips', act ? (act.agentIds || []) : []);
 }
 
 function applyDefaultRequirements() {
@@ -1208,14 +1182,13 @@ function submitTaskForm(existing) {
   const name = document.getElementById('task-name').value.trim();
   const description = document.getElementById('task-description').value.trim();
   const type = document.getElementById('task-type').value;
-  const agentIds = getCheckedAgentIds('task-agent-picker');
 
   if (existing) {
     const scheduledTime24 = document.getElementById('task-scheduled-time').value;
     updateState(s => {
       const t = s.tasks.find(x => x.id === existing.id);
       Object.assign(t, {
-        activityId, name, description, type, requirements, agentIds,
+        activityId, name, description, type, requirements,
         executionType: execType,
         scheduledTime: scheduledTime24 ? formatTime12(scheduledTime24) : t.scheduledTime,
         scheduledTime24
@@ -1235,7 +1208,7 @@ function submitTaskForm(existing) {
         s.tasks.push({
           id, activityId, name: `${name} (${w.label})`, description, type,
           scheduledTime: formatTime12(w.time), scheduledTime24: w.time,
-          executionType: 'Once', requirements, agentIds
+          executionType: 'Once', requirements
         });
       });
     });
@@ -1247,7 +1220,7 @@ function submitTaskForm(existing) {
       s.tasks.push({
         id, activityId, name, description, type,
         scheduledTime: scheduledTime24 ? formatTime12(scheduledTime24) : '',
-        scheduledTime24, executionType: execType, requirements, agentIds
+        scheduledTime24, executionType: execType, requirements
       });
     });
   }
@@ -1280,6 +1253,7 @@ function renderTaskDetail(t) {
   const root = document.getElementById('page-root');
   const activity = getActivity(t.activityId);
   const status = computeTaskStatus(t);
+  const subs = getSubmissionsForTask(t.id).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 
   const reqTags = [];
   if (t.requirements.photo) reqTags.push('Photo');
@@ -1293,12 +1267,13 @@ function renderTaskDetail(t) {
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
-          <div class="detail-eyebrow mono">${t.id}</div>
           <h1>${escapeHtml(t.name)}</h1>
           <div class="detail-sub">
             <a href="activity-detail.html?id=${t.activityId}">${t.activityId} &mdash; ${activity ? escapeHtml(activity.name) : ''}</a>
             <span>&middot;</span>
             <span>${escapeHtml(t.type)}</span>
+            <span>&middot;</span>
+            <span>${escapeHtml(t.executionType || 'Once')}</span>
             <span>&middot;</span>
             <span>${escapeHtml(t.scheduledTime || 'Unscheduled')}</span>
             <span>&middot;</span>
@@ -1307,163 +1282,31 @@ function renderTaskDetail(t) {
         </div>
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="task-create.html?edit=${t.id}">Edit Task</a>
-          <a class="btn btn-secondary" href="submissions.html?task=${t.id}">View Submissions</a>
-          <button class="btn btn-ghost" style="color:var(--color-red);" onclick="handleDeleteTask('${t.id}')">Delete</button>
+          <button class="btn btn-danger" onclick="handleDeleteTask('${t.id}')">Delete Task</button>
+        </div>
+      </div>
+      <div class="kv-grid" style="margin-top: var(--sp-5);">
+        <div class="kv-item"><div class="kv-label">Description</div><div class="kv-value">${t.description ? escapeHtml(t.description) : '&mdash;'}</div></div>
+        <div class="kv-item">
+          <div class="kv-label">Required Evidence</div>
+          <div class="tag-list" style="margin-top:4px;">${reqTags.map(r => `<span class="tag">${r}</span>`).join('') || '&mdash;'}</div>
         </div>
       </div>
     </div>
 
-    <div class="detail-layout">
-      <div>
-        <div class="card">
-          <div class="card-header"><h3>Execution Status</h3></div>
-          <div class="card-body" style="padding:0;">
-            ${(t.agentIds || []).length === 0 ? `<div style="padding: var(--sp-5);">${emptyState({ icon: '&#128100;', title: 'No Agents Assigned', message: 'Assign agents to this task from the Edit Task form.' })}</div>` : `
-            <table class="data-table"><thead><tr><th>Agent</th><th>Mobile</th><th>Status</th><th></th></tr></thead><tbody>
-              ${t.agentIds.map(id => {
-                const agent = getAgent(id);
-                if (!agent) return '';
-                const agentStatus = computeTaskAgentStatus(t.id, id);
-                const sub = getSubmissionForTaskAgent(t.id, id);
-                return `<tr>
-                  <td>${escapeHtml(agent.name)}</td>
-                  <td class="mono">${agent.mobile}</td>
-                  <td>${badge(agentStatus === 'Completed' ? (sub.status) : agentStatus)}</td>
-                  <td>${sub ? `<a class="btn btn-secondary btn-sm" href="submission-detail.html?id=${sub.id}">View Submission</a>` : '<span class="text-faint">&mdash;</span>'}</td>
-                </tr>`;
-              }).join('')}
-            </tbody></table>`}
-          </div>
-        </div>
+    <div class="section-title-row"><h2>Submissions</h2></div>
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        ${subs.length === 0 ? `<div style="padding: var(--sp-5);">${emptyState({ icon: '&#128247;', title: 'No Submissions Yet', message: 'No field officer has submitted evidence for this task yet.' })}</div>` : `
+        <table class="data-table"><thead><tr><th>Mobile</th><th>Submitted</th><th>Status</th><th></th></tr></thead><tbody>
+          ${subs.map(s => `<tr>
+            <td class="mono">${escapeHtml(s.mobile)}</td>
+            <td>${formatDateTime(s.submittedAt)}</td>
+            <td>${badge(s.status)}</td>
+            <td><a class="btn btn-secondary btn-sm" href="submission-detail.html?id=${s.id}">View</a></td>
+          </tr>`).join('')}
+        </tbody></table>`}
       </div>
-      <div>
-        <div class="card">
-          <div class="card-header"><h3>Task Details</h3></div>
-          <div class="card-body">
-            <div class="kv-grid" style="grid-template-columns:1fr;">
-              <div class="kv-item"><div class="kv-label">Description</div><div class="kv-value">${escapeHtml(t.description || '&mdash;')}</div></div>
-              <div class="kv-item"><div class="kv-label">Execution Type</div><div class="kv-value">${escapeHtml(t.executionType || 'Once')}</div></div>
-              <div class="kv-item">
-                <div class="kv-label">Required Evidence</div>
-                <div class="tag-list" style="margin-top:4px;">${reqTags.map(r => `<span class="tag">${r}</span>`).join('') || '&mdash;'}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/* ================================================================ */
-/* Agents: List + Detail                                              */
-/* ================================================================ */
-
-function initAgentsPage() {
-  document.getElementById('filter-status').innerHTML = '<option value="">All Statuses</option>' + optionList(['Active', 'Inactive']);
-  ['filter-search', 'filter-status'].forEach(id => {
-    document.getElementById(id).addEventListener('input', renderAgentsTable);
-    document.getElementById(id).addEventListener('change', renderAgentsTable);
-  });
-  renderAgentsTable();
-}
-
-function renderAgentsTable() {
-  const state = getState();
-  const search = (document.getElementById('filter-search').value || '').toLowerCase();
-  const status = document.getElementById('filter-status').value;
-
-  let rows = state.agents.filter(a => {
-    if (search && !(a.name.toLowerCase().includes(search) || a.mobile.includes(search))) return false;
-    if (status && a.status !== status) return false;
-    return true;
-  });
-
-  const tbody = document.getElementById('agents-tbody');
-  const empty = document.getElementById('agents-empty');
-  const wrap = document.getElementById('agents-table-wrap');
-
-  if (rows.length === 0) {
-    wrap.style.display = 'none';
-    empty.style.display = 'block';
-    empty.innerHTML = emptyState({ icon: '&#128100;', title: 'No Agents Found', message: 'Try adjusting your search.' });
-    return;
-  }
-  wrap.style.display = 'block';
-  empty.style.display = 'none';
-
-  tbody.innerHTML = rows.map(a => {
-    const stats = computeAgentStats(a.id);
-    return `<tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><span class="agent-avatar">${initials(a.name)}</span><a class="table-link" href="agent-detail.html?id=${a.id}">${escapeHtml(a.name)}</a></div></td>
-      <td class="mono">${a.mobile}</td>
-      <td class="num">${stats.activities}</td>
-      <td class="num">${stats.active}</td>
-      <td>${badge(a.status)}</td>
-      <td><a class="btn btn-secondary btn-sm" href="agent-detail.html?id=${a.id}">View</a></td>
-    </tr>`;
-  }).join('');
-}
-
-function initAgentDetailPage() {
-  const id = getQueryParam('id');
-  const agent = getAgent(id);
-  const root = document.getElementById('page-root');
-  if (!agent) {
-    root.innerHTML = emptyState({ icon: '&#10060;', title: 'Agent Not Found', message: 'This agent may not exist.', actionLabel: 'Back to Agents', actionHref: 'agents.html' });
-    return;
-  }
-
-  const activities = getActivitiesForAgent(id);
-  const tasks = getTasksForAgent(id);
-  const stats = computeAgentStats(id);
-  const eventIds = [...new Set(activities.map(a => a.eventId))];
-
-  root.innerHTML = `
-    ${breadcrumbs([{ label: 'Agents', href: 'agents.html' }, { label: agent.name }])}
-    <div class="detail-header">
-      <div class="detail-header-top">
-        <div style="display:flex; align-items:center; gap:14px;">
-          <span class="agent-avatar" style="width:48px;height:48px;font-size:16px;">${initials(agent.name)}</span>
-          <div>
-            <h1>${escapeHtml(agent.name)}</h1>
-            <div class="detail-sub"><span class="mono">${agent.mobile}</span><span>&middot;</span>${badge(agent.status)}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom: var(--sp-5);">
-      <div class="stat-card"><div class="stat-label">Assigned Activities</div><div class="stat-value">${stats.activities}</div></div>
-      <div class="stat-card"><div class="stat-label">Total Tasks</div><div class="stat-value">${stats.tasks}</div></div>
-      <div class="stat-card"><div class="stat-label">Completed</div><div class="stat-value">${stats.completed}</div></div>
-      <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value">${stats.active}</div></div>
-    </div>
-
-    <div class="section-title-row"><h2>Assigned Events</h2></div>
-    <div class="tag-list" style="margin-bottom: var(--sp-6);">
-      ${eventIds.length ? eventIds.map(eid => { const e = getEvent(eid); return `<a class="tag" href="event-detail.html?id=${eid}" style="text-decoration:none;">${e ? escapeHtml(e.name) : eid}</a>`; }).join('') : '<span class="text-faint" style="font-size:13px;">No events assigned.</span>'}
-    </div>
-
-    <div class="section-title-row"><h2>Assigned Activities</h2></div>
-    <div class="table-wrap card" style="margin-bottom: var(--sp-6);">
-      <table class="data-table"><thead><tr><th>Activity No.</th><th>Name</th><th>Location</th><th>Status</th><th></th></tr></thead><tbody>
-        ${activities.length ? activities.map(a => `<tr>
-          <td class="mono">${a.id}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.location.city)}</td><td>${badge(a.status)}</td>
-          <td><a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a></td>
-        </tr>`).join('') : `<tr><td colspan="5"><div class="text-faint" style="padding:10px 0;">No activities assigned.</div></td></tr>`}
-      </tbody></table>
-    </div>
-
-    <div class="section-title-row"><h2>Current Tasks</h2></div>
-    <div class="table-wrap card">
-      <table class="data-table"><thead><tr><th>Task No.</th><th>Task Name</th><th>Activity</th><th>Status</th></tr></thead><tbody>
-        ${tasks.length ? tasks.map(t => `<tr>
-          <td class="mono"><a class="table-link" href="task-detail.html?id=${t.id}">${t.id}</a></td>
-          <td>${escapeHtml(t.name)}</td><td class="mono">${t.activityId}</td>
-          <td>${badge(computeTaskAgentStatus(t.id, id) === 'Completed' ? 'Completed' : computeTaskAgentStatus(t.id, id))}</td>
-        </tr>`).join('') : `<tr><td colspan="4"><div class="text-faint" style="padding:10px 0;">No tasks assigned.</div></td></tr>`}
-      </tbody></table>
     </div>
   `;
 }
@@ -1476,14 +1319,13 @@ function initSubmissionsPage() {
   const state = getState();
   document.getElementById('filter-activity').innerHTML = '<option value="">All Activities</option>' + state.activities.map(a => `<option value="${a.id}">${a.id} &mdash; ${escapeHtml(a.name)}</option>`).join('');
   document.getElementById('filter-status').innerHTML = '<option value="">All Statuses</option>' + optionList(SUBMISSION_STATUSES);
-  document.getElementById('filter-agent').innerHTML = '<option value="">All Agents</option>' + state.agents.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
 
   const presetTask = getQueryParam('task');
   const presetActivity = getQueryParam('activity');
   if (presetActivity) document.getElementById('filter-activity').value = presetActivity;
   if (presetTask) document.getElementById('filter-search').value = presetTask;
 
-  ['filter-search', 'filter-activity', 'filter-status', 'filter-agent'].forEach(id => {
+  ['filter-search', 'filter-activity', 'filter-status'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderSubmissionsTable);
     document.getElementById(id).addEventListener('change', renderSubmissionsTable);
   });
@@ -1495,15 +1337,12 @@ function renderSubmissionsTable() {
   const search = (document.getElementById('filter-search').value || '').toLowerCase();
   const activityId = document.getElementById('filter-activity').value;
   const status = document.getElementById('filter-status').value;
-  const agentId = document.getElementById('filter-agent').value;
 
   let rows = state.submissions.filter(s => {
     const task = getTask(s.taskId);
-    const agent = getAgent(s.agentId);
-    if (search && !((task && task.name.toLowerCase().includes(search)) || s.id.toLowerCase().includes(search) || s.taskId.toLowerCase().includes(search) || (agent && agent.name.toLowerCase().includes(search)))) return false;
+    if (search && !((task && task.name.toLowerCase().includes(search)) || s.id.toLowerCase().includes(search) || s.taskId.toLowerCase().includes(search) || s.mobile.includes(search))) return false;
     if (activityId && s.activityId !== activityId) return false;
     if (status && s.status !== status) return false;
-    if (agentId && s.agentId !== agentId) return false;
     return true;
   }).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 
@@ -1521,11 +1360,10 @@ function renderSubmissionsTable() {
   empty.style.display = 'none';
 
   tbody.innerHTML = rows.map(s => {
-    const agent = getAgent(s.agentId);
     const task = getTask(s.taskId);
     return `<tr>
       <td class="mono"><a class="table-link" href="submission-detail.html?id=${s.id}">${s.id}</a></td>
-      <td>${agent ? escapeHtml(agent.name) : '&mdash;'}</td>
+      <td class="mono">${escapeHtml(s.mobile)}</td>
       <td class="mono">${s.activityId}</td>
       <td>${task ? escapeHtml(task.name) : s.taskId}</td>
       <td>${formatTimeOnly(s.submittedAt)}</td>
@@ -1550,7 +1388,6 @@ function initSubmissionDetailPage() {
 function renderSubmissionDetail(id) {
   const sub = getSubmission(id);
   const root = document.getElementById('page-root');
-  const agent = getAgent(sub.agentId);
   const task = getTask(sub.taskId);
   const activity = getActivity(sub.activityId);
 
@@ -1561,7 +1398,7 @@ function renderSubmissionDetail(id) {
         <div>
           <div class="detail-eyebrow mono">${sub.id}</div>
           <h1>${task ? escapeHtml(task.name) : sub.taskId}</h1>
-          <div class="detail-sub"><span>${agent ? escapeHtml(agent.name) : sub.agentId}</span><span>&middot;</span><span>${formatDateTime(sub.submittedAt)}</span><span>&middot;</span>${badge(sub.status)}</div>
+          <div class="detail-sub"><span class="mono">${escapeHtml(sub.mobile)}</span><span>&middot;</span><span>${formatDateTime(sub.submittedAt)}</span><span>&middot;</span>${badge(sub.status)}</div>
         </div>
         <div class="detail-header-actions" id="submission-actions"></div>
       </div>
@@ -1569,12 +1406,10 @@ function renderSubmissionDetail(id) {
 
     <div class="detail-layout">
       <div>
-        ${renderMapPlaceholder(null, null, 'photo-evidence')
-          .replace('Map Placeholder', 'Submitted Photo')
-          .replace('&#128205;', '&#128247;')
-          .replace(/<div class="ph-coords">.*?<\/div>/, '')}
+        <div class="section-title-row"><h2>Photo Evidence</h2></div>
+        ${renderPhotoGrid(sub)}
         <div class="card" style="margin-top: var(--sp-5);">
-          <div class="card-header"><h3>Agent Comment</h3></div>
+          <div class="card-header"><h3>Comment</h3></div>
           <div class="card-body">
             <p>${escapeHtml(sub.comment || 'No comment provided.')}</p>
           </div>
@@ -1586,7 +1421,7 @@ function renderSubmissionDetail(id) {
           <div class="card-header"><h3>Submission Details</h3></div>
           <div class="card-body">
             <div class="kv-grid" style="grid-template-columns:1fr;">
-              <div class="kv-item"><div class="kv-label">Agent</div><div class="kv-value">${agent ? escapeHtml(agent.name) : '&mdash;'}</div></div>
+              <div class="kv-item"><div class="kv-label">Submitted By (Mobile)</div><div class="kv-value mono">${escapeHtml(sub.mobile)}</div></div>
               <div class="kv-item"><div class="kv-label">Activity</div><div class="kv-value"><a href="activity-detail.html?id=${sub.activityId}">${sub.activityId}${activity ? ' &mdash; ' + escapeHtml(activity.name) : ''}</a></div></div>
               <div class="kv-item"><div class="kv-label">Task</div><div class="kv-value"><a href="task-detail.html?id=${sub.taskId}">${sub.taskId}${task ? ' &mdash; ' + escapeHtml(task.name) : ''}</a></div></div>
               <div class="kv-item"><div class="kv-label">Submitted</div><div class="kv-value">${formatDateTime(sub.submittedAt)}</div></div>
@@ -1630,7 +1465,7 @@ function openRejectModal(id) {
   openModal(`
     <div class="modal-header"><h3>Reject Submission</h3></div>
     <div class="modal-body">
-      <p style="margin-bottom: var(--sp-3);">Please provide a reason for rejecting this submission. The agent will be able to see this feedback.</p>
+      <p style="margin-bottom: var(--sp-3);">Please provide a reason for rejecting this submission. The field officer will see this feedback and can resubmit.</p>
       <div class="form-group full" style="margin-bottom:0;">
         <label>Rejection Reason <span class="req">*</span></label>
         <textarea class="form-control" id="rejection-reason-input" placeholder="e.g. Photo is blurred and branding is not visible."></textarea>
@@ -1655,67 +1490,6 @@ function confirmRejectSubmission(id) {
 }
 
 /* ================================================================ */
-/* Reports                                                             */
-/* ================================================================ */
-
-function initReportsPage() {
-  const state = getState();
-  const root = document.getElementById('page-root');
-
-  const taskByStatus = {};
-  TASK_STATUSES.forEach(s => taskByStatus[s] = 0);
-  state.tasks.forEach(t => taskByStatus[computeTaskStatus(t)]++);
-
-  const subByStatus = {};
-  SUBMISSION_STATUSES.forEach(s => subByStatus[s] = 0);
-  state.submissions.forEach(s => subByStatus[s.status] = (subByStatus[s.status] || 0) + 1);
-
-  const activityByType = {};
-  state.activities.forEach(a => activityByType[a.type] = (activityByType[a.type] || 0) + 1);
-
-  const eventByStatus = {};
-  EVENT_STATUSES.forEach(s => eventByStatus[s] = 0);
-  state.events.forEach(e => eventByStatus[e.status]++);
-
-  function barRows(dataObj, total) {
-    return Object.entries(dataObj).map(([label, count]) => {
-      const pct = total ? Math.round((count / total) * 100) : 0;
-      return `<div style="display:flex; align-items:center; gap:12px; padding:8px 0;">
-        <div style="width:150px; font-size:13px; font-weight:600;">${escapeHtml(label)}</div>
-        ${progressBar(pct, { hideLabel: true })}
-        <div style="width:70px; text-align:right; font-size:12.5px; color:var(--color-text-muted);">${count} (${pct}%)</div>
-      </div>`;
-    }).join('');
-  }
-
-  root.innerHTML = `
-    <div class="page-header"><div><h1>Reports</h1><div class="subtitle">Aggregate execution metrics across all events, activities and tasks.</div></div></div>
-    <div class="detail-layout">
-      <div>
-        <div class="card" style="margin-bottom: var(--sp-5);">
-          <div class="card-header"><h3>Tasks by Status</h3></div>
-          <div class="card-body">${barRows(taskByStatus, state.tasks.length)}</div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Submissions by Status</h3></div>
-          <div class="card-body">${barRows(subByStatus, state.submissions.length)}</div>
-        </div>
-      </div>
-      <div>
-        <div class="card" style="margin-bottom: var(--sp-5);">
-          <div class="card-header"><h3>Events by Status</h3></div>
-          <div class="card-body">${barRows(eventByStatus, state.events.length)}</div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h3>Activities by Type</h3></div>
-          <div class="card-body">${barRows(activityByType, state.activities.length)}</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/* ================================================================ */
 /* Settings                                                            */
 /* ================================================================ */
 
@@ -1733,9 +1507,5 @@ function initSettingsPage() {
         setTimeout(() => window.location.href = 'dashboard.html', 700);
       }
     });
-  });
-
-  document.querySelectorAll('.toggle').forEach(t => {
-    t.addEventListener('click', () => t.classList.toggle('on'));
   });
 }
