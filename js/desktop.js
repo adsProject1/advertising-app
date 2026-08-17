@@ -229,6 +229,19 @@ function lightboxDragStart(e) {
   document.addEventListener('mouseup', onUp);
 }
 
+// Clickable stat-card row used above list-page filter bars. `cards` is
+// [{ label, value, count, onclick }]; `activeValue` highlights the card
+// whose `value` matches the current filter selection.
+function renderStatFilterCards(containerId, cards, activeValue) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = cards.map(c => `
+    <div class="stat-card stat-card-clickable ${c.value === activeValue ? 'active' : ''}" onclick="${c.onclick}">
+      <div class="stat-label">${escapeHtml(c.label)}</div>
+      <div class="stat-value">${c.count}</div>
+    </div>`).join('');
+}
+
 function optionList(values, selected) {
   return values.map(v => `<option value="${escapeHtml(v)}" ${v === selected ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
 }
@@ -364,12 +377,31 @@ function initEventsListPage() {
   renderEventsTable();
 }
 
+function setEventsStatusFilter(status) {
+  document.getElementById('filter-status').value = status;
+  renderEventsTable();
+}
+
+function renderEventsStatCards(state, activeStatus) {
+  const statuses = EVENT_STATUSES.filter(s => s !== 'Draft');
+  const cards = [
+    { label: 'Total Events', value: '', count: state.events.length, onclick: "setEventsStatusFilter('')" },
+    ...statuses.map(s => ({
+      label: s, value: s, count: state.events.filter(e => e.status === s).length,
+      onclick: `setEventsStatusFilter('${s}')`
+    }))
+  ];
+  renderStatFilterCards('events-stat-cards', cards, activeStatus);
+}
+
 function renderEventsTable() {
   const state = getState();
   const search = (document.getElementById('filter-search').value || '').toLowerCase();
   const status = document.getElementById('filter-status').value;
   const dateFrom = document.getElementById('filter-date-from').value;
   const dateTo = document.getElementById('filter-date-to').value;
+
+  renderEventsStatCards(state, status);
 
   let rows = state.events.filter(e => {
     if (search && !(e.name.toLowerCase().includes(search) || e.id.toLowerCase().includes(search))) return false;
@@ -405,7 +437,7 @@ function renderEventsTable() {
         <div class="row-actions">
           <a class="btn btn-secondary btn-sm" href="event-detail.html?id=${ev.id}">View</a>
           <a class="btn btn-secondary btn-sm" href="event-create.html?edit=${ev.id}">Edit</a>
-          <button class="btn btn-ghost btn-sm" onclick="handleDeleteEvent('${ev.id}')">Delete</button>
+          <button class="btn btn-danger btn-sm" onclick="handleDeleteEvent('${ev.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -552,7 +584,6 @@ function renderEventDetail(ev) {
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
-          <div class="detail-eyebrow mono">${ev.id}</div>
           <h1>${escapeHtml(ev.name)}</h1>
           <div class="detail-sub">
             <span>${formatDateRange(ev.dateFrom, ev.dateTo)}</span>
@@ -563,19 +594,16 @@ function renderEventDetail(ev) {
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="event-create.html?edit=${ev.id}">Edit Event</a>
           <a class="btn btn-primary" href="activity-create.html?eventId=${ev.id}">+ Add Activity</a>
+          <button class="btn btn-danger" onclick="handleDeleteEvent('${ev.id}')">Delete Event</button>
         </div>
       </div>
       <div class="kv-grid" style="margin-top: var(--sp-5);">
-        <div class="kv-item"><div class="kv-label">Brand / Campaign</div><div class="kv-value">${ev.brand ? escapeHtml(ev.brand) : '&mdash;'}</div></div>
-        <div class="kv-item"><div class="kv-label">Product</div><div class="kv-value">${ev.product ? escapeHtml(ev.product) : '&mdash;'}</div></div>
+        <div class="kv-item"><div class="kv-label">Brand / Product</div><div class="kv-value">${[ev.brand, ev.product].filter(Boolean).map(escapeHtml).join(' &mdash; ') || '&mdash;'}</div></div>
         <div class="kv-item"><div class="kv-label">Description</div><div class="kv-value">${ev.description ? escapeHtml(ev.description) : '&mdash;'}</div></div>
         <div class="kv-item">
           <div class="kv-label">Event Elements</div>
           <div class="tag-list" style="margin-top:4px;">${(ev.elements || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
         </div>
-      </div>
-      <div style="margin-top: var(--sp-4);">
-        <button class="btn btn-ghost btn-sm" style="color:var(--color-red);" onclick="handleDeleteEvent('${ev.id}')">Delete Event</button>
       </div>
     </div>
 
@@ -606,7 +634,7 @@ function renderEventDetail(ev) {
               <div class="row-actions">
                 <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
                 <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
-                <button class="btn btn-ghost btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
+                <button class="btn btn-danger btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
               </div>
             </td>
           </tr>`;
@@ -637,6 +665,23 @@ function initActivitiesListPage() {
   renderActivitiesTable();
 }
 
+function setActivitiesStatusFilter(status) {
+  document.getElementById('filter-status').value = status;
+  renderActivitiesTable();
+}
+
+function renderActivitiesStatCards(state, activeStatus) {
+  const statuses = ACTIVITY_STATUSES.filter(s => s !== 'Draft');
+  const cards = [
+    { label: 'Total Activities', value: '', count: state.activities.length, onclick: "setActivitiesStatusFilter('')" },
+    ...statuses.map(s => ({
+      label: s, value: s, count: state.activities.filter(a => a.status === s).length,
+      onclick: `setActivitiesStatusFilter('${s}')`
+    }))
+  ];
+  renderStatFilterCards('activities-stat-cards', cards, activeStatus);
+}
+
 function renderActivitiesTable() {
   const state = getState();
   const search = (document.getElementById('filter-search').value || '').toLowerCase();
@@ -644,6 +689,8 @@ function renderActivitiesTable() {
   const city = document.getElementById('filter-city').value;
   const type = document.getElementById('filter-type').value;
   const status = document.getElementById('filter-status').value;
+
+  renderActivitiesStatCards(state, status);
 
   let rows = state.activities.filter(a => {
     if (search && !(a.name.toLowerCase().includes(search) || a.id.toLowerCase().includes(search))) return false;
@@ -683,7 +730,7 @@ function renderActivitiesTable() {
         <div class="row-actions">
           <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
           <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
-          <button class="btn btn-ghost btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
+          <button class="btn btn-danger btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -828,12 +875,13 @@ function renderActivityDetail(a) {
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
-          <div class="detail-eyebrow mono">${a.id}</div>
           <h1>${escapeHtml(a.name)}</h1>
           <div class="detail-sub">
             <a href="event-detail.html?id=${a.eventId}">${ev ? escapeHtml(ev.name) : a.eventId}</a>
             <span>&middot;</span>
             <span>${escapeHtml(a.location.city)}</span>
+            <span>&middot;</span>
+            <span>${escapeHtml(a.type)}</span>
             <span>&middot;</span>
             ${badge(a.status)}
           </div>
@@ -841,23 +889,19 @@ function renderActivityDetail(a) {
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="activity-create.html?edit=${a.id}">Edit Activity</a>
           <a class="btn btn-primary" href="task-create.html?activityId=${a.id}">+ Add Task</a>
+          <button class="btn btn-danger" onclick="handleDeleteActivity('${a.id}')">Delete Activity</button>
         </div>
       </div>
       <div class="kv-grid" style="margin-top: var(--sp-5);">
         <div class="kv-item"><div class="kv-label">Activity Number</div><div class="kv-value mono">${a.id}</div></div>
-        <div class="kv-item"><div class="kv-label">Activity Type</div><div class="kv-value">${escapeHtml(a.type)}</div></div>
-        <div class="kv-item"><div class="kv-label">Location</div><div class="kv-value">${escapeHtml(a.location.name)}</div></div>
-        <div class="kv-item"><div class="kv-label">Address</div><div class="kv-value">${[a.location.addressLine1, a.location.addressLine2].filter(Boolean).map(escapeHtml).join(', ') || '&mdash;'}, ${escapeHtml(a.location.city)} ${escapeHtml(a.location.pin || '')}</div></div>
         <div class="kv-item"><div class="kv-label">Field Officer</div><div class="kv-value">${a.fieldOfficerName ? escapeHtml(a.fieldOfficerName) : '&mdash;'}</div></div>
+        <div class="kv-item"><div class="kv-label">Location</div><div class="kv-value">${escapeHtml(a.location.name)}${[a.location.addressLine1, a.location.addressLine2].filter(Boolean).length ? ', ' + [a.location.addressLine1, a.location.addressLine2].filter(Boolean).map(escapeHtml).join(', ') : ''}, ${escapeHtml(a.location.city)} ${escapeHtml(a.location.pin || '')}</div></div>
         <div class="kv-item">
           <div class="kv-label">Activity Elements</div>
           <div class="tag-list" style="margin-top:4px;">${(a.elements || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
         </div>
       </div>
-      <div style="margin-top: var(--sp-4); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap: var(--sp-3);">
-        <p class="form-hint" style="margin:0;">Field officers log into the mobile app using this Activity Number and their mobile number &mdash; no separate agent assignment is required.</p>
-        <button class="btn btn-ghost btn-sm" style="color:var(--color-red);" onclick="handleDeleteActivity('${a.id}')">Delete Activity</button>
-      </div>
+      <p class="form-hint" style="margin: var(--sp-3) 0 0;">Field officers log into the mobile app using this Activity Number and their mobile number &mdash; no separate agent assignment is required.</p>
     </div>
 
     <div class="section-title-row"><h2>Tasks</h2><a class="btn btn-secondary btn-sm" href="task-create.html?activityId=${a.id}">+ Add Task</a></div>
@@ -903,12 +947,30 @@ function initTasksListPage() {
   renderTasksTable();
 }
 
+function setTasksStatusFilter(status) {
+  document.getElementById('filter-status').value = status;
+  renderTasksTable();
+}
+
+function renderTasksStatCards(state, activeStatus) {
+  const cards = [
+    { label: 'Total Tasks', value: '', count: state.tasks.length, onclick: "setTasksStatusFilter('')" },
+    ...TASK_STATUSES.map(s => ({
+      label: s, value: s, count: state.tasks.filter(t => computeTaskStatus(t) === s).length,
+      onclick: `setTasksStatusFilter('${s}')`
+    }))
+  ];
+  renderStatFilterCards('tasks-stat-cards', cards, activeStatus);
+}
+
 function renderTasksTable() {
   const state = getState();
   const search = (document.getElementById('filter-search').value || '').toLowerCase();
   const activityId = document.getElementById('filter-activity').value;
   const type = document.getElementById('filter-type').value;
   const status = document.getElementById('filter-status').value;
+
+  renderTasksStatCards(state, status);
 
   let rows = state.tasks.filter(t => {
     if (search && !(t.name.toLowerCase().includes(search) || t.id.toLowerCase().includes(search))) return false;
@@ -942,7 +1004,7 @@ function renderTasksTable() {
       <div class="row-actions">
         <a class="btn btn-secondary btn-sm" href="task-detail.html?id=${t.id}">View</a>
         <a class="btn btn-secondary btn-sm" href="task-create.html?edit=${t.id}">Edit</a>
-        <button class="btn btn-ghost btn-sm" onclick="handleDeleteTask('${t.id}')">Delete</button>
+        <button class="btn btn-danger btn-sm" onclick="handleDeleteTask('${t.id}')">Delete</button>
       </div>
     </td>
   </tr>`).join('');
@@ -1205,12 +1267,13 @@ function renderTaskDetail(t) {
     <div class="detail-header">
       <div class="detail-header-top">
         <div>
-          <div class="detail-eyebrow mono">${t.id}</div>
           <h1>${escapeHtml(t.name)}</h1>
           <div class="detail-sub">
             <a href="activity-detail.html?id=${t.activityId}">${t.activityId} &mdash; ${activity ? escapeHtml(activity.name) : ''}</a>
             <span>&middot;</span>
             <span>${escapeHtml(t.type)}</span>
+            <span>&middot;</span>
+            <span>${escapeHtml(t.executionType || 'Once')}</span>
             <span>&middot;</span>
             <span>${escapeHtml(t.scheduledTime || 'Unscheduled')}</span>
             <span>&middot;</span>
@@ -1219,12 +1282,11 @@ function renderTaskDetail(t) {
         </div>
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="task-create.html?edit=${t.id}">Edit Task</a>
-          <button class="btn btn-ghost" style="color:var(--color-red);" onclick="handleDeleteTask('${t.id}')">Delete</button>
+          <button class="btn btn-danger" onclick="handleDeleteTask('${t.id}')">Delete Task</button>
         </div>
       </div>
       <div class="kv-grid" style="margin-top: var(--sp-5);">
         <div class="kv-item"><div class="kv-label">Description</div><div class="kv-value">${t.description ? escapeHtml(t.description) : '&mdash;'}</div></div>
-        <div class="kv-item"><div class="kv-label">Execution Type</div><div class="kv-value">${escapeHtml(t.executionType || 'Once')}</div></div>
         <div class="kv-item">
           <div class="kv-label">Required Evidence</div>
           <div class="tag-list" style="margin-top:4px;">${reqTags.map(r => `<span class="tag">${r}</span>`).join('') || '&mdash;'}</div>
