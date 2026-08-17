@@ -174,6 +174,12 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .stat-card .stat-value { font-size: 28px; font-weight: 700; margin-top: 6px; letter-spacing: -0.02em; }
 .stat-card .stat-sub { font-size: 12px; color: var(--color-text-faint); margin-top: 4px; }
 
+.stat-grid-filters { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: var(--sp-4); }
+.stat-card-clickable { cursor: pointer; user-select: none; transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease; }
+.stat-card-clickable:hover { border-color: var(--color-primary); box-shadow: var(--shadow-md); }
+.stat-card-clickable.active { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary-light); }
+.stat-card-clickable.active .stat-value { color: var(--color-primary); }
+
 /* ------------------------------------------------------------ */
 /* Tables                                                         */
 /* ------------------------------------------------------------ */
@@ -275,8 +281,26 @@ body.modal-open { overflow: hidden; }
 /* ------------------------------------------------------------ */
 
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--sp-6); gap: var(--sp-4); flex-wrap: wrap; }
-.page-header h1 { font-size: 22px; }
+.page-header h1 { font-size: 25px; }
 .page-header .subtitle { color: var(--color-text-muted); font-size: 13px; margin-top: 4px; }
+
+.page-header h1, .detail-header h1 {
+  position: relative;
+  padding-left: 14px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--color-text);
+}
+.page-header h1::before, .detail-header h1::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--color-primary);
+}
 .page-header-actions { display: flex; gap: var(--sp-3); flex-shrink: 0; }
 
 /* ------------------------------------------------------------ */

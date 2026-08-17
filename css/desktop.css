@@ -100,7 +100,7 @@ body.desktop-app { background: var(--color-bg); }
 .detail-header { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--sp-5) var(--sp-6); margin-bottom: var(--sp-5); box-shadow: var(--shadow-sm); }
 .detail-header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-4); flex-wrap: wrap; }
 .detail-eyebrow { font-size: 12px; font-weight: 700; color: var(--color-text-faint); letter-spacing: 0.03em; margin-bottom: 4px; }
-.detail-header h1 { font-size: 21px; }
+.detail-header h1 { font-size: 23px; }
 .detail-header .detail-sub { font-size: 13px; color: var(--color-text-muted); margin-top: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .detail-header-actions { display: flex; gap: var(--sp-3); flex-shrink: 0; }
 
