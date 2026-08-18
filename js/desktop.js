@@ -230,17 +230,30 @@ function lightboxDragStart(e) {
 }
 
 // Clickable stat-card row used above list-page filter bars. `cards` is
-// [{ label, value, count, onclick }]; `activeValue` highlights the card
+// [{ label, value, count, onclick, icon }]; `activeValue` highlights the card
 // whose `value` matches the current filter selection.
 function renderStatFilterCards(containerId, cards, activeValue) {
   const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = cards.map(c => `
     <div class="stat-card stat-card-clickable ${c.value === activeValue ? 'active' : ''}" onclick="${c.onclick}">
-      <div class="stat-label">${escapeHtml(c.label)}</div>
-      <div class="stat-value">${c.count}</div>
+      <div class="stat-icon">${c.icon || '&#128202;'}</div>
+      <div class="stat-body">
+        <div class="stat-label">${escapeHtml(c.label)}</div>
+        <div class="stat-value">${c.count}</div>
+      </div>
     </div>`).join('');
 }
+
+// Icons shown on list-page status stat-cards, keyed by status label.
+const STATUS_STAT_ICONS = {
+  'Scheduled': '&#128337;',
+  'Active': '&#9889;',
+  'Completed': '&#9989;',
+  'Cancelled': '&#10060;',
+  'Pending': '&#8987;',
+  'Rejected': '&#128683;'
+};
 
 function optionList(values, selected) {
   return values.map(v => `<option value="${escapeHtml(v)}" ${v === selected ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
@@ -385,10 +398,10 @@ function setEventsStatusFilter(status) {
 function renderEventsStatCards(state, activeStatus) {
   const statuses = EVENT_STATUSES.filter(s => s !== 'Draft');
   const cards = [
-    { label: 'Total Events', value: '', count: state.events.length, onclick: "setEventsStatusFilter('')" },
+    { label: 'Total Events', value: '', count: state.events.length, onclick: "setEventsStatusFilter('')", icon: '&#128197;' },
     ...statuses.map(s => ({
       label: s, value: s, count: state.events.filter(e => e.status === s).length,
-      onclick: `setEventsStatusFilter('${s}')`
+      onclick: `setEventsStatusFilter('${s}')`, icon: STATUS_STAT_ICONS[s]
     }))
   ];
   renderStatFilterCards('events-stat-cards', cards, activeStatus);
@@ -429,6 +442,7 @@ function renderEventsTable() {
     return `<tr>
       <td><a class="table-link" href="event-detail.html?id=${ev.id}">${escapeHtml(ev.name)}</a></td>
       <td class="mono">${ev.id}</td>
+      <td>${ev.brand ? escapeHtml(ev.brand) : '<span class="text-faint">&mdash;</span>'}</td>
       <td>${formatDateShort(ev.dateFrom)}</td>
       <td>${formatDate(ev.dateTo)}</td>
       <td class="num">${stats.activities}</td>
@@ -437,7 +451,7 @@ function renderEventsTable() {
         <div class="row-actions">
           <a class="btn btn-secondary btn-sm" href="event-detail.html?id=${ev.id}">View</a>
           <a class="btn btn-secondary btn-sm" href="event-create.html?edit=${ev.id}">Edit</a>
-          <button class="btn btn-danger btn-sm" onclick="handleDeleteEvent('${ev.id}')">Delete</button>
+          <button class="btn btn-secondary btn-sm" onclick="handleDeleteEvent('${ev.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -634,7 +648,7 @@ function renderEventDetail(ev) {
               <div class="row-actions">
                 <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
                 <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
-                <button class="btn btn-danger btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
+                <button class="btn btn-secondary btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
               </div>
             </td>
           </tr>`;
@@ -673,10 +687,10 @@ function setActivitiesStatusFilter(status) {
 function renderActivitiesStatCards(state, activeStatus) {
   const statuses = ACTIVITY_STATUSES.filter(s => s !== 'Draft');
   const cards = [
-    { label: 'Total Activities', value: '', count: state.activities.length, onclick: "setActivitiesStatusFilter('')" },
+    { label: 'Total Activities', value: '', count: state.activities.length, onclick: "setActivitiesStatusFilter('')", icon: '&#128205;' },
     ...statuses.map(s => ({
       label: s, value: s, count: state.activities.filter(a => a.status === s).length,
-      onclick: `setActivitiesStatusFilter('${s}')`
+      onclick: `setActivitiesStatusFilter('${s}')`, icon: STATUS_STAT_ICONS[s]
     }))
   ];
   renderStatFilterCards('activities-stat-cards', cards, activeStatus);
@@ -724,13 +738,12 @@ function renderActivitiesTable() {
       <td>${escapeHtml(a.type)}</td>
       <td>${a.fieldOfficerName ? escapeHtml(a.fieldOfficerName) : '<span class="text-faint">&mdash;</span>'}</td>
       <td class="num">${stats.tasks}</td>
-      <td>${progressBar(stats.progress)}</td>
       <td>${badge(a.status)}</td>
       <td>
         <div class="row-actions">
           <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
           <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
-          <button class="btn btn-danger btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
+          <button class="btn btn-secondary btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
         </div>
       </td>
     </tr>`;
@@ -954,10 +967,10 @@ function setTasksStatusFilter(status) {
 
 function renderTasksStatCards(state, activeStatus) {
   const cards = [
-    { label: 'Total Tasks', value: '', count: state.tasks.length, onclick: "setTasksStatusFilter('')" },
+    { label: 'Total Tasks', value: '', count: state.tasks.length, onclick: "setTasksStatusFilter('')", icon: '&#128203;' },
     ...TASK_STATUSES.map(s => ({
       label: s, value: s, count: state.tasks.filter(t => computeTaskStatus(t) === s).length,
-      onclick: `setTasksStatusFilter('${s}')`
+      onclick: `setTasksStatusFilter('${s}')`, icon: STATUS_STAT_ICONS[s]
     }))
   ];
   renderStatFilterCards('tasks-stat-cards', cards, activeStatus);
@@ -1004,7 +1017,7 @@ function renderTasksTable() {
       <div class="row-actions">
         <a class="btn btn-secondary btn-sm" href="task-detail.html?id=${t.id}">View</a>
         <a class="btn btn-secondary btn-sm" href="task-create.html?edit=${t.id}">Edit</a>
-        <button class="btn btn-danger btn-sm" onclick="handleDeleteTask('${t.id}')">Delete</button>
+        <button class="btn btn-secondary btn-sm" onclick="handleDeleteTask('${t.id}')">Delete</button>
       </div>
     </td>
   </tr>`).join('');
