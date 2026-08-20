@@ -116,6 +116,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 .btn-danger { background: var(--color-red); color: #fff; }
 .btn-danger:hover:not(:disabled) { background: #a8212f; }
+.btn-danger-soft { background: var(--color-red-bg); color: var(--color-red); }
+.btn-danger-soft:hover:not(:disabled) { background: #f6d7da; }
 
 .btn-sm { padding: 6px 12px; font-size: 12.5px; }
 .btn-block { width: 100%; }
@@ -237,7 +239,7 @@ table.data-table td.num, table.data-table th.num { text-align: right; }
 .row-actions { display: flex; gap: var(--sp-2); }
 
 /* Expandable table rows (Submissions list) ---------------------- */
-th.expand-col { width: 36px; }
+th.expand-col { width: 36px; padding-left: 16px; padding-right: 0; }
 td.expand-toggle-cell { width: 36px; padding-left: 16px; padding-right: 0; }
 .expand-chevron {
   background: none; border: none; cursor: pointer; padding: 0;
@@ -246,8 +248,9 @@ td.expand-toggle-cell { width: 36px; padding-left: 16px; padding-right: 0; }
   font-size: 11px; color: var(--color-text-faint);
   transition: transform 0.15s ease, background 0.12s ease, color 0.12s ease;
 }
-.expand-chevron:hover { background: var(--color-gray-bg); color: var(--color-text); }
+.expand-chevron:hover:not(:disabled) { background: var(--color-gray-bg); color: var(--color-text); }
 .expand-chevron.expanded { transform: rotate(90deg); color: var(--color-primary); }
+.expand-chevron:disabled { opacity: 0.4; cursor: not-allowed; }
 tr.submission-expand-row:hover { background: none; }
 tr.submission-expand-row td { background: #fafbfd; padding: var(--sp-4) var(--sp-5); }
 .submission-photo-panel .photo-grid { margin-bottom: 0; }
@@ -265,10 +268,16 @@ tr.submission-expand-row td { background: #fafbfd; padding: var(--sp-4) var(--sp
 /* Forms                                                          */
 /* ------------------------------------------------------------ */
 
-.form-section { margin-bottom: var(--sp-6); }
 .form-section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--color-text-muted); margin-bottom: var(--sp-3); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--color-border); }
-.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-4); }
-.form-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4); }
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
 .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--sp-4); }
 .form-group.full { grid-column: 1 / -1; }
 .form-group label { font-size: 13px; font-weight: 600; color: var(--color-text); }
@@ -466,6 +475,22 @@ body.modal-open { overflow: hidden; }
 .lightbox-hint { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.65); font-size: 12px; z-index: 1001; white-space: nowrap; }
 .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.12); color: #fff; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 1001; }
 .lightbox-nav:hover { background: rgba(255,255,255,0.22); }
+
+/* Fullscreen select toggle (Submissions list lightbox only) --- */
+.lightbox-select-toggle {
+  position: absolute; bottom: 22px; left: 24px; z-index: 1001;
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,0.12); color: #fff; border: 1.5px solid rgba(255,255,255,0.35);
+  border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.lightbox-select-toggle:hover { background: rgba(255,255,255,0.22); }
+.lightbox-select-toggle .check-dot {
+  width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.6);
+  display: flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; flex-shrink: 0;
+}
+.lightbox-select-toggle.selected { background: var(--color-primary); border-color: var(--color-primary); }
+.lightbox-select-toggle.selected .check-dot { background: #fff; color: var(--color-primary); border-color: #fff; }
 .lightbox-prev { left: 18px; }
 .lightbox-next { right: 18px; }
 
