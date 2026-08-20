@@ -647,6 +647,12 @@ function renderActivityDetail(a) {
 /* Submissions: List + Detail                                         */
 /* ================================================================ */
 
+// Row-expand + cross-row photo-selection state for the Submissions list.
+// Both persist across re-renders (filtering, toggling other rows) for the
+// lifetime of the page — reset only on a fresh page load.
+let EXPANDED_SUBMISSIONS = new Set();
+let SELECTED_PHOTOS = new Set(); // keys are `${submissionId}::${photoIndex}`
+
 function initSubmissionsPage() {
   const state = getState();
   document.getElementById('filter-activity').innerHTML = '<option value="">All Activities</option>' + state.activities.map(a => `<option value="${a.id}">${a.id} &mdash; ${escapeHtml(a.name)}</option>`).join('');
@@ -658,24 +664,32 @@ function initSubmissionsPage() {
     document.getElementById(id).addEventListener('input', renderSubmissionsTable);
     document.getElementById(id).addEventListener('change', renderSubmissionsTable);
   });
+  document.getElementById('toggle-expand-all-btn').addEventListener('click', toggleExpandAllSubmissions);
   renderSubmissionsTable();
 }
 
-function renderSubmissionsTable() {
+function getFilteredSubmissions() {
   const state = getState();
   const search = (document.getElementById('filter-search').value || '').toLowerCase();
   const activityId = document.getElementById('filter-activity').value;
 
-  let rows = state.submissions.filter(s => {
+  return state.submissions.filter(s => {
     const activity = getActivity(s.activityId);
     if (search && !((activity && activity.name.toLowerCase().includes(search)) || s.id.toLowerCase().includes(search) || s.activityId.toLowerCase().includes(search) || s.mobile.includes(search) || (s.teamNo && s.teamNo.toLowerCase().includes(search)))) return false;
     if (activityId && s.activityId !== activityId) return false;
     return true;
   }).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+}
+
+function renderSubmissionsTable() {
+  const rows = getFilteredSubmissions();
 
   const tbody = document.getElementById('submissions-tbody');
   const empty = document.getElementById('submissions-empty');
   const wrap = document.getElementById('submissions-table-wrap');
+
+  updateExpandAllButton(rows);
+  renderSelectionBar();
 
   if (rows.length === 0) {
     wrap.style.display = 'none';
@@ -688,7 +702,9 @@ function renderSubmissionsTable() {
 
   tbody.innerHTML = rows.map(s => {
     const activity = getActivity(s.activityId);
-    return `<tr>
+    const expanded = EXPANDED_SUBMISSIONS.has(s.id);
+    const row = `<tr>
+      <td class="expand-toggle-cell"><button type="button" class="expand-chevron ${expanded ? 'expanded' : ''}" onclick="toggleSubmissionRow('${s.id}')" aria-label="${expanded ? 'Collapse' : 'Expand'} photos for ${s.id}">&#9656;</button></td>
       <td class="mono"><a class="table-link" href="submission-detail.html?id=${s.id}">${s.id}</a></td>
       <td class="mono">${escapeHtml(s.mobile)}</td>
       <td>${s.teamNo ? escapeHtml(s.teamNo) : '<span class="text-faint">&mdash;</span>'}</td>
@@ -697,7 +713,101 @@ function renderSubmissionsTable() {
       <td>${escapeHtml(s.location)}</td>
       <td><a class="btn btn-secondary btn-sm" href="submission-detail.html?id=${s.id}">View</a></td>
     </tr>`;
+    const expandRow = expanded
+      ? `<tr class="submission-expand-row"><td colspan="8"><div class="submission-photo-panel">${renderSubmissionRowPhotos(s)}</div></td></tr>`
+      : '';
+    return row + expandRow;
   }).join('');
+}
+
+function toggleSubmissionRow(id) {
+  if (EXPANDED_SUBMISSIONS.has(id)) EXPANDED_SUBMISSIONS.delete(id);
+  else EXPANDED_SUBMISSIONS.add(id);
+  renderSubmissionsTable();
+}
+
+function toggleExpandAllSubmissions() {
+  const rows = getFilteredSubmissions();
+  const allExpanded = rows.length > 0 && rows.every(s => EXPANDED_SUBMISSIONS.has(s.id));
+  rows.forEach(s => allExpanded ? EXPANDED_SUBMISSIONS.delete(s.id) : EXPANDED_SUBMISSIONS.add(s.id));
+  renderSubmissionsTable();
+}
+
+function updateExpandAllButton(rows) {
+  const btn = document.getElementById('toggle-expand-all-btn');
+  if (!btn) return;
+  const allExpanded = rows.length > 0 && rows.every(s => EXPANDED_SUBMISSIONS.has(s.id));
+  btn.textContent = allExpanded ? 'Collapse All' : 'Expand All';
+  btn.disabled = rows.length === 0;
+}
+
+// Per-row photo grid for the expanded Submissions-list row. Distinct from
+// app.js's shared renderPhotoGrid (used on Submission Detail pages) because
+// each thumbnail here also carries a select toggle for cross-row selection.
+function renderSubmissionRowPhotos(sub) {
+  const files = getSubmissionPhotos(sub);
+  const srcs = files.map(f => SUBMISSION_PHOTO_BASE + f);
+  const captures = sub.captures || [];
+  return `<div class="photo-grid photo-grid-compact">
+    ${srcs.map((src, i) => {
+      const key = sub.id + '::' + i;
+      const selected = SELECTED_PHOTOS.has(key);
+      const tags = captures[i] ? captures[i].elementNames.join(', ') : `Photo ${i + 1}`;
+      return `
+      <div class="photo-card submission-photo-card ${selected ? 'selected' : ''}" data-photo-key="${key}" onclick='openImageLightbox(${JSON.stringify(srcs)}, ${i})'>
+        <button type="button" class="photo-select-toggle" aria-label="${selected ? 'Deselect' : 'Select'} photo" onclick='event.stopPropagation(); togglePhotoSelection(${JSON.stringify(key)}, this.closest(".submission-photo-card"))'>${selected ? '&#10003;' : ''}</button>
+        <img src="${src}" alt="Submission photo ${i + 1}" loading="lazy">
+        <div class="photo-card-label"><span>${escapeHtml(tags)}</span><span>&#128269;</span></div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function togglePhotoSelection(key, cardEl) {
+  let selected;
+  if (SELECTED_PHOTOS.has(key)) {
+    SELECTED_PHOTOS.delete(key);
+    selected = false;
+  } else {
+    SELECTED_PHOTOS.add(key);
+    selected = true;
+  }
+  if (cardEl) {
+    cardEl.classList.toggle('selected', selected);
+    const toggleBtn = cardEl.querySelector('.photo-select-toggle');
+    if (toggleBtn) {
+      toggleBtn.innerHTML = selected ? '&#10003;' : '';
+      toggleBtn.setAttribute('aria-label', (selected ? 'Deselect' : 'Select') + ' photo');
+    }
+  }
+  renderSelectionBar();
+}
+
+function clearPhotoSelection() {
+  SELECTED_PHOTOS.clear();
+  document.querySelectorAll('.submission-photo-card.selected').forEach(el => {
+    el.classList.remove('selected');
+    const btn = el.querySelector('.photo-select-toggle');
+    if (btn) { btn.innerHTML = ''; btn.setAttribute('aria-label', 'Select photo'); }
+  });
+  renderSelectionBar();
+}
+
+function renderSelectionBar() {
+  const bar = document.getElementById('selection-bar');
+  if (!bar) return;
+  const count = SELECTED_PHOTOS.size;
+  if (count === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+  const submissionCount = new Set(Array.from(SELECTED_PHOTOS).map(k => k.split('::')[0])).size;
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <span><strong>${count}</strong> photo${count !== 1 ? 's' : ''} selected across <strong>${submissionCount}</strong> submission${submissionCount !== 1 ? 's' : ''}</span>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="clearPhotoSelection()">Clear Selection</button>
+  `;
 }
 
 function initSubmissionDetailPage() {
