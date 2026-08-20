@@ -12,7 +12,7 @@ Two applications, sharing one in-browser dataset:
 
 ### 1. Desktop Admin application
 Used by agency operations staff to run the business:
-- Add and manage **Activities** — a flat list, each with an auto-generated numeric Activity Number (`10001`, `10002`, ...), a State Name, AO Name, Period (date range), one or more Elements, and a Number of Team/Vans
+- Add and manage **Activities** — a flat list, each with an auto-generated numeric Activity Number (`10001`, `10002`, ...), a State Name, AO Name, Period (date range), one or more Elements, and a Number of Team/Vans with a location assigned to each team/van (entered one at a time — the next location box appears only once the current one is filled)
 - Review **Submissions** — field evidence (photos) submitted by mobile users, auto-approved on submit, with a fullscreen zoomable photo viewer
 - Dashboard view for activity/submission overview
 

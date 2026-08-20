@@ -10,7 +10,7 @@
  * switches back to the desktop app in the same browser.
  */
 
-const STORAGE_KEY = 'promotrack_state_v8';
+const STORAGE_KEY = 'promotrack_state_v9';
 const SESSION_KEY = 'promotrack_agent_session_v1';
 const EXEC_KEY = 'promotrack_task_execution_v1';
 

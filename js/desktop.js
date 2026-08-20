@@ -282,6 +282,8 @@ function handleDeleteActivity(id) {
 /* ================================================================ */
 
 let SELECTED_ELEMENTS = [];
+let TEAM_LOCATIONS = [];
+let TEAM_LOCATIONS_REVEALED = 0;
 
 function initActivityCreatePage() {
   const editId = getQueryParam('edit');
@@ -292,6 +294,9 @@ function initActivityCreatePage() {
 
   SELECTED_ELEMENTS = existing ? existing.elementNames.slice() : [];
   renderSelectedElementChips();
+
+  TEAM_LOCATIONS = existing && existing.teamVanLocations ? existing.teamVanLocations.slice() : [];
+  document.getElementById('activity-teamvan').addEventListener('input', syncTeamVanCount);
 
   const searchInput = document.getElementById('element-search-input');
   searchInput.addEventListener('input', () => {
@@ -324,6 +329,8 @@ function initActivityCreatePage() {
     document.getElementById('create-activity-btn').textContent = 'Save Changes';
   }
 
+  syncTeamVanCount();
+
   document.getElementById('cancel-btn').addEventListener('click', () => {
     window.location.href = existing ? `activity-detail.html?id=${existing.id}` : 'activities.html';
   });
@@ -348,6 +355,14 @@ function submitActivityForm(existing) {
   }
   elementError.textContent = '';
 
+  const teamLocationsError = document.getElementById('team-locations-error');
+  const teamVanCount = TEAM_LOCATIONS.length;
+  if (teamVanCount === 0 || TEAM_LOCATIONS.some(loc => !loc || !loc.trim())) {
+    teamLocationsError.textContent = `Enter a location for each of the ${teamVanCount || 'N'} team/vans, in order.`;
+    return;
+  }
+  teamLocationsError.textContent = '';
+
   const periodFrom = document.getElementById('activity-period-from').value;
   const periodTo = document.getElementById('activity-period-to').value;
   if (periodTo < periodFrom) {
@@ -361,7 +376,8 @@ function submitActivityForm(existing) {
     name: document.getElementById('activity-name').value.trim(),
     periodFrom, periodTo,
     elementNames: SELECTED_ELEMENTS.slice(),
-    teamVan: Number(document.getElementById('activity-teamvan').value)
+    teamVan: Number(document.getElementById('activity-teamvan').value),
+    teamVanLocations: TEAM_LOCATIONS.slice()
   };
 
   if (existing) {
@@ -374,6 +390,67 @@ function submitActivityForm(existing) {
   const id = nextId('activity');
   updateState(s => { s.activities.push(Object.assign({ id }, data)); });
   showActivitySuccess(id);
+}
+
+/* Team/Van location inputs: revealed one at a time, in serial order --- */
+
+// Resizes TEAM_LOCATIONS to match the current "Number of Team/Vans" value
+// (preserving already-typed locations by index) and recomputes how many
+// boxes should be visible: the filled prefix from index 0, plus one more
+// empty box to fill next — capped at the team/van count.
+function syncTeamVanCount() {
+  const n = Math.max(0, parseInt(document.getElementById('activity-teamvan').value, 10) || 0);
+  const resized = TEAM_LOCATIONS.slice(0, n);
+  while (resized.length < n) resized.push('');
+  TEAM_LOCATIONS = resized;
+
+  let filled = 0;
+  while (filled < n && TEAM_LOCATIONS[filled] && TEAM_LOCATIONS[filled].trim()) filled++;
+  TEAM_LOCATIONS_REVEALED = n === 0 ? 0 : Math.min(filled + 1, n);
+
+  renderTeamLocationInputs();
+}
+
+function renderTeamLocationInputs(focusIndex) {
+  const section = document.getElementById('team-locations-section');
+  const list = document.getElementById('team-locations-list');
+  if (TEAM_LOCATIONS.length === 0) {
+    section.style.display = 'none';
+    document.getElementById('team-locations-error').textContent = '';
+    return;
+  }
+  section.style.display = '';
+  list.innerHTML = TEAM_LOCATIONS.slice(0, TEAM_LOCATIONS_REVEALED).map((val, i) => `
+    <div class="form-group">
+      <label>Team ${i + 1} Location <span class="req">*</span></label>
+      <input type="text" class="form-control team-location-input" data-index="${i}" placeholder="e.g. Mhow" value="${escapeHtml(val || '')}">
+    </div>
+  `).join('');
+  list.querySelectorAll('.team-location-input').forEach(input => {
+    input.addEventListener('input', () => onTeamLocationInput(Number(input.dataset.index), input));
+  });
+  if (focusIndex != null) {
+    const target = list.querySelector(`.team-location-input[data-index="${focusIndex}"]`);
+    if (target) {
+      target.focus();
+      target.setSelectionRange(target.value.length, target.value.length);
+    }
+  }
+}
+
+function onTeamLocationInput(i, input) {
+  forceLowercase(input);
+  TEAM_LOCATIONS[i] = input.value;
+
+  // Reveal the next box only once the last-visible one is filled — keeps
+  // the boxes appearing strictly one at a time, in serial order. Only
+  // re-render (which rebuilds the input DOM) when the reveal count
+  // actually changes, so mid-typing keystrokes never steal focus.
+  const revealsNext = i === TEAM_LOCATIONS_REVEALED - 1 && input.value.trim() && TEAM_LOCATIONS_REVEALED < TEAM_LOCATIONS.length;
+  if (revealsNext) {
+    TEAM_LOCATIONS_REVEALED++;
+    renderTeamLocationInputs(i);
+  }
 }
 
 // Keeps an input's live value lowercased and, separately, strips any Latin
@@ -534,6 +611,10 @@ function renderActivityDetail(a) {
           <div class="tag-list" style="margin-top:4px;">${(a.elementNames || []).map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
         </div>
         <div class="kv-item"><div class="kv-label">Number of Team/Vans</div><div class="kv-value">${escapeHtml(a.teamVan)}</div></div>
+        <div class="kv-item">
+          <div class="kv-label">Team/Van Locations</div>
+          <div class="tag-list" style="margin-top:4px;">${(a.teamVanLocations || []).map((loc, i) => `<span class="tag">Team ${i + 1}: ${escapeHtml(loc)}</span>`).join('') || '&mdash;'}</div>
+        </div>
       </div>
       <p class="form-hint" style="margin: var(--sp-3) 0 0;">Field officers log into the mobile app using this Activity Number and their mobile number &mdash; no separate agent assignment is required.</p>
     </div>

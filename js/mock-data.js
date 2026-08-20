@@ -31,7 +31,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-20',
       periodTo: '2026-08-25',
       elementNames: ['Branding', 'Photoshoot'],
-      teamVan: 2
+      teamVan: 2,
+      teamVanLocations: ['Viman Nagar, Pune', 'Kothrud, Pune']
     },
     {
       id: '10002',
@@ -41,7 +42,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-20',
       periodTo: '2026-08-25',
       elementNames: ['Product Display', 'Photoshoot'],
-      teamVan: 1
+      teamVan: 1,
+      teamVanLocations: ['Hadapsar, Pune']
     },
     {
       id: '10003',
@@ -51,7 +53,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-15',
       periodTo: '2026-08-16',
       elementNames: ['Photo Booth Activation'],
-      teamVan: 1
+      teamVan: 1,
+      teamVanLocations: ['Magarpatta, Pune']
     },
     {
       id: '10004',
@@ -61,7 +64,8 @@ const MOCK_DATA = {
       periodFrom: '2026-10-01',
       periodTo: '2026-10-10',
       elementNames: ['Sampling', 'Lead Collection'],
-      teamVan: 3
+      teamVan: 3,
+      teamVanLocations: ['Malad, Mumbai', 'Andheri, Mumbai', 'Goregaon, Mumbai']
     },
     {
       id: '10005',
@@ -71,7 +75,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-01',
       periodTo: '2026-08-10',
       elementNames: ['Product Demonstration'],
-      teamVan: 1
+      teamVan: 1,
+      teamVanLocations: ['Koramangala, Bengaluru']
     },
     {
       id: '10006',
@@ -81,7 +86,8 @@ const MOCK_DATA = {
       periodFrom: '2026-12-28',
       periodTo: '2027-01-05',
       elementNames: ['Branding', 'Product Display'],
-      teamVan: 2
+      teamVan: 2,
+      teamVanLocations: ['Saket, Delhi', 'Hauz Khas, Delhi']
     },
     {
       id: '10007',
@@ -91,7 +97,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-01',
       periodTo: '2026-08-10',
       elementNames: ['Product Demonstration', 'Video Capture'],
-      teamVan: 1
+      teamVan: 1,
+      teamVanLocations: ['Royapettah, Chennai']
     },
     {
       id: '10008',
@@ -101,7 +108,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-18',
       periodTo: '2026-08-24',
       elementNames: ['Sampling', 'Product Display'],
-      teamVan: 2
+      teamVan: 2,
+      teamVanLocations: ['Banjara Hills, Hyderabad', 'Jubilee Hills, Hyderabad']
     },
     {
       id: '10009',
@@ -111,7 +119,8 @@ const MOCK_DATA = {
       periodFrom: '2026-12-15',
       periodTo: '2026-12-31',
       elementNames: ['Branding', 'Product Demonstration'],
-      teamVan: 1
+      teamVan: 1,
+      teamVanLocations: ['Jadavpur, Kolkata']
     },
     {
       id: '10010',
@@ -121,7 +130,8 @@ const MOCK_DATA = {
       periodFrom: '2026-08-10',
       periodTo: '2026-08-15',
       elementNames: ['Branding', 'Customer Interaction'],
-      teamVan: 4
+      teamVan: 4,
+      teamVanLocations: ['Vastrapur, Ahmedabad', 'Satellite, Ahmedabad', 'Bodakdev, Ahmedabad', 'Prahladnagar, Ahmedabad']
     }
   ],
 
