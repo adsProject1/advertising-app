@@ -283,7 +283,6 @@ function handleDeleteActivity(id) {
 
 let SELECTED_ELEMENTS = [];
 let TEAM_LOCATIONS = [];
-let TEAM_LOCATIONS_REVEALED = 0;
 
 function initActivityCreatePage() {
   const editId = getQueryParam('edit');
@@ -392,26 +391,20 @@ function submitActivityForm(existing) {
   showActivitySuccess(id);
 }
 
-/* Team/Van location inputs: revealed one at a time, in serial order --- */
+/* Team/Van location inputs: all boxes shown at once ----------------- */
 
-// Resizes TEAM_LOCATIONS to match the current "Number of Team/Vans" value
-// (preserving already-typed locations by index) and recomputes how many
-// boxes should be visible: the filled prefix from index 0, plus one more
-// empty box to fill next — capped at the team/van count.
+// Resizes TEAM_LOCATIONS to match the current "Number of Team/Vans" value,
+// preserving already-typed locations by index, then re-renders all boxes.
 function syncTeamVanCount() {
   const n = Math.max(0, parseInt(document.getElementById('activity-teamvan').value, 10) || 0);
   const resized = TEAM_LOCATIONS.slice(0, n);
   while (resized.length < n) resized.push('');
   TEAM_LOCATIONS = resized;
 
-  let filled = 0;
-  while (filled < n && TEAM_LOCATIONS[filled] && TEAM_LOCATIONS[filled].trim()) filled++;
-  TEAM_LOCATIONS_REVEALED = n === 0 ? 0 : Math.min(filled + 1, n);
-
   renderTeamLocationInputs();
 }
 
-function renderTeamLocationInputs(focusIndex) {
+function renderTeamLocationInputs() {
   const section = document.getElementById('team-locations-section');
   const list = document.getElementById('team-locations-list');
   if (TEAM_LOCATIONS.length === 0) {
@@ -420,7 +413,7 @@ function renderTeamLocationInputs(focusIndex) {
     return;
   }
   section.style.display = '';
-  list.innerHTML = TEAM_LOCATIONS.slice(0, TEAM_LOCATIONS_REVEALED).map((val, i) => `
+  list.innerHTML = TEAM_LOCATIONS.map((val, i) => `
     <div class="form-group">
       <label>Team ${i + 1} Location <span class="req">*</span></label>
       <input type="text" class="form-control team-location-input" data-index="${i}" placeholder="e.g. Mhow" value="${escapeHtml(val || '')}">
@@ -429,28 +422,11 @@ function renderTeamLocationInputs(focusIndex) {
   list.querySelectorAll('.team-location-input').forEach(input => {
     input.addEventListener('input', () => onTeamLocationInput(Number(input.dataset.index), input));
   });
-  if (focusIndex != null) {
-    const target = list.querySelector(`.team-location-input[data-index="${focusIndex}"]`);
-    if (target) {
-      target.focus();
-      target.setSelectionRange(target.value.length, target.value.length);
-    }
-  }
 }
 
 function onTeamLocationInput(i, input) {
   forceLowercase(input);
   TEAM_LOCATIONS[i] = input.value;
-
-  // Reveal the next box only once the last-visible one is filled — keeps
-  // the boxes appearing strictly one at a time, in serial order. Only
-  // re-render (which rebuilds the input DOM) when the reveal count
-  // actually changes, so mid-typing keystrokes never steal focus.
-  const revealsNext = i === TEAM_LOCATIONS_REVEALED - 1 && input.value.trim() && TEAM_LOCATIONS_REVEALED < TEAM_LOCATIONS.length;
-  if (revealsNext) {
-    TEAM_LOCATIONS_REVEALED++;
-    renderTeamLocationInputs(i);
-  }
 }
 
 // Keeps an input's live value lowercased and, separately, strips any Latin
@@ -737,7 +713,8 @@ function updateExpandAllButton(rows) {
   const btn = document.getElementById('toggle-expand-all-btn');
   if (!btn) return;
   const allExpanded = rows.length > 0 && rows.every(s => EXPANDED_SUBMISSIONS.has(s.id));
-  btn.textContent = allExpanded ? 'Collapse All' : 'Expand All';
+  btn.classList.toggle('expanded', allExpanded);
+  btn.setAttribute('aria-label', allExpanded ? 'Collapse all' : 'Expand all');
   btn.disabled = rows.length === 0;
 }
 
@@ -747,20 +724,27 @@ function updateExpandAllButton(rows) {
 function renderSubmissionRowPhotos(sub) {
   const files = getSubmissionPhotos(sub);
   const srcs = files.map(f => SUBMISSION_PHOTO_BASE + f);
+  const keys = srcs.map((_, i) => sub.id + '::' + i);
   const captures = sub.captures || [];
   return `<div class="photo-grid photo-grid-compact">
     ${srcs.map((src, i) => {
-      const key = sub.id + '::' + i;
+      const key = keys[i];
       const selected = SELECTED_PHOTOS.has(key);
       const tags = captures[i] ? captures[i].elementNames.join(', ') : `Photo ${i + 1}`;
       return `
-      <div class="photo-card submission-photo-card ${selected ? 'selected' : ''}" data-photo-key="${key}" onclick='openImageLightbox(${JSON.stringify(srcs)}, ${i})'>
+      <div class="photo-card submission-photo-card ${selected ? 'selected' : ''}" data-photo-key="${key}" onclick='openImageLightbox(${JSON.stringify(srcs)}, ${i}, ${JSON.stringify(keys)})'>
         <button type="button" class="photo-select-toggle" aria-label="${selected ? 'Deselect' : 'Select'} photo" onclick='event.stopPropagation(); togglePhotoSelection(${JSON.stringify(key)}, this.closest(".submission-photo-card"))'>${selected ? '&#10003;' : ''}</button>
         <img src="${src}" alt="Submission photo ${i + 1}" loading="lazy">
         <div class="photo-card-label"><span>${escapeHtml(tags)}</span><span>&#128269;</span></div>
       </div>`;
     }).join('')}
   </div>`;
+}
+
+// Generic accessor so app.js's shared lightbox can read selection state
+// without depending on this page's SELECTED_PHOTOS internals directly.
+function isPhotoSelected(key) {
+  return SELECTED_PHOTOS.has(key);
 }
 
 function togglePhotoSelection(key, cardEl) {

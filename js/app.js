@@ -10,7 +10,7 @@
  * switches back to the desktop app in the same browser.
  */
 
-const STORAGE_KEY = 'promotrack_state_v9';
+const STORAGE_KEY = 'promotrack_state_v10';
 const SESSION_KEY = 'promotrack_agent_session_v1';
 const EXEC_KEY = 'promotrack_task_execution_v1';
 
@@ -366,8 +366,13 @@ function renderPhotoGrid(sub) {
 
 let LIGHTBOX_STATE = null;
 
-function openImageLightbox(srcs, index) {
-  LIGHTBOX_STATE = { srcs, index, zoomed: false, tx: 0, ty: 0 };
+// `keys` is optional: a parallel array of cross-row selection keys (see
+// desktop.js's SELECTED_PHOTOS), one per src. Only the Submissions list's
+// expanded-row grid passes it, which is what opts a given lightbox open
+// into showing the select toggle below — plain viewers (Submission Detail,
+// mobile) pass nothing and get the lightbox with no select affordance.
+function openImageLightbox(srcs, index, keys) {
+  LIGHTBOX_STATE = { srcs, index, zoomed: false, tx: 0, ty: 0, keys: keys || null };
   const root = ensureModalRoot();
   root.innerHTML = `
     <div class="lightbox-overlay" id="lightbox-overlay">
@@ -378,6 +383,9 @@ function openImageLightbox(srcs, index) {
       <div class="lightbox-stage" id="lightbox-stage">
         <img class="lightbox-img" id="lightbox-img" draggable="false">
       </div>
+      ${keys ? `<button type="button" class="lightbox-select-toggle" id="lightbox-select-toggle" onclick="toggleLightboxPhotoSelection()">
+        <span class="check-dot" id="lightbox-select-check"></span><span id="lightbox-select-label">Select</span>
+      </button>` : ''}
       <div class="lightbox-hint">Click image to zoom &middot; drag to pan while zoomed &middot; Esc to close</div>
     </div>`;
   document.body.classList.add('modal-open');
@@ -400,6 +408,33 @@ function renderLightboxImage() {
   img.onmousedown = lightboxDragStart;
   document.getElementById('lightbox-counter').textContent = LIGHTBOX_STATE.srcs.length > 1
     ? `${LIGHTBOX_STATE.index + 1} / ${LIGHTBOX_STATE.srcs.length}` : '';
+  updateLightboxSelectToggle();
+}
+
+// Reflects the current photo's selection state on the lightbox's own toggle
+// button. Reads via the generic `isPhotoSelected` hook rather than touching
+// desktop.js's SELECTED_PHOTOS directly, so app.js stays page-agnostic.
+function updateLightboxSelectToggle() {
+  const btn = document.getElementById('lightbox-select-toggle');
+  if (!btn || !LIGHTBOX_STATE || !LIGHTBOX_STATE.keys) return;
+  const key = LIGHTBOX_STATE.keys[LIGHTBOX_STATE.index];
+  const selected = !!(key && typeof isPhotoSelected === 'function' && isPhotoSelected(key));
+  btn.classList.toggle('selected', selected);
+  document.getElementById('lightbox-select-check').innerHTML = selected ? '&#10003;' : '';
+  document.getElementById('lightbox-select-label').textContent = selected ? 'Selected' : 'Select';
+}
+
+// Delegates to desktop.js's togglePhotoSelection so the SELECTED_PHOTOS
+// mutation, the thumbnail card's own toggle button, and the selection bar
+// all stay in sync with what the lightbox shows — this just adds the
+// fullscreen-view affordance on top of that single source of truth.
+function toggleLightboxPhotoSelection() {
+  if (!LIGHTBOX_STATE || !LIGHTBOX_STATE.keys) return;
+  const key = LIGHTBOX_STATE.keys[LIGHTBOX_STATE.index];
+  if (!key || typeof togglePhotoSelection !== 'function') return;
+  const cardEl = document.querySelector(`.submission-photo-card[data-photo-key="${CSS.escape(key)}"]`);
+  togglePhotoSelection(key, cardEl);
+  updateLightboxSelectToggle();
 }
 
 function toggleLightboxZoom(e) {

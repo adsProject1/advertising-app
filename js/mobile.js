@@ -246,7 +246,12 @@ function initHomePage() {
   // past submission is its own permanent record — none of them are
   // overridden or hidden by a newer one, so all are listed, newest first.
   const allSubs = getSubmissionsForActivity(activity.id).slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  content.innerHTML = renderHomeStaging(exec, allSubs.length > 0) + renderSubmissionHistory(allSubs);
+  // Previous Submissions is hidden while a round is actively being
+  // captured (exec.captures.length > 0) — it's noise while the field
+  // officer is mid-capture, and only relevant again once they land back
+  // on a clean Home (or History/Profile, which always show it).
+  const inProgress = exec.captures.length > 0;
+  content.innerHTML = renderHomeStaging(exec, allSubs.length > 0) + (inProgress ? '' : renderSubmissionHistory(allSubs));
   wireHomeActions(activity, exec);
 }
 
@@ -275,7 +280,15 @@ function renderHomeStaging(exec, hasPriorSubmission) {
   html += `<p class="form-hint" style="text-align:center; margin: 10px 0;">${remainingRequired > 0
     ? `Capture at least ${remainingRequired} more photo${remainingRequired > 1 ? 's' : ''} (minimum ${MIN_SUBMISSION_PHOTOS}) before you can submit.`
     : `Minimum of ${MIN_SUBMISSION_PHOTOS} photos reached &mdash; you can submit now, or keep adding more.`}</p>`;
-  html += `<button class="btn btn-primary btn-block" id="submit-all-btn" ${remainingRequired > 0 ? 'disabled' : ''}>Submit All</button>`;
+
+  html += `<div class="form-group">
+    <label for="submission-name-input">Submission Name</label>
+    <input type="text" class="form-control" id="submission-name-input" placeholder="e.g. round 1 - morning shift" value="${escapeHtml(exec.name || '')}">
+  </div>`;
+
+  const canSubmit = remainingRequired <= 0 && !!(exec.name && exec.name.trim());
+  html += `<button class="btn btn-primary btn-block" id="submit-all-btn" ${canSubmit ? '' : 'disabled'}>Submit All</button>`;
+  html += `<button class="btn btn-danger-soft btn-block" id="cancel-submission-btn" style="margin-top:8px;">Cancel Submission</button>`;
   return html;
 }
 
@@ -284,8 +297,18 @@ function wireHomeActions(activity, exec) {
   if (addBtn) addBtn.addEventListener('click', () => window.location.href = 'capture.html');
 
   const submitBtn = document.getElementById('submit-all-btn');
+  const nameInput = document.getElementById('submission-name-input');
+
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      exec.name = nameInput.value;
+      setTaskExecution(exec);
+      if (submitBtn) submitBtn.disabled = !(exec.captures.length >= MIN_SUBMISSION_PHOTOS && nameInput.value.trim());
+    });
+  }
+
   if (submitBtn) submitBtn.addEventListener('click', () => {
-    if (exec.captures.length < MIN_SUBMISSION_PHOTOS) return;
+    if (exec.captures.length < MIN_SUBMISSION_PHOTOS || !(nameInput && nameInput.value.trim())) return;
     const session = requireAgentSession();
     if (!session) return;
     confirmDialog({
@@ -293,6 +316,22 @@ function wireHomeActions(activity, exec) {
       message: 'Once submitted, you may not be able to edit it.',
       confirmText: 'Submit',
       onConfirm: () => finalizeSubmission(activity, session)
+    });
+  });
+
+  const cancelBtn = document.getElementById('cancel-submission-btn');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => {
+    confirmDialog({
+      title: 'Cancel this submission?',
+      message: 'All photos captured so far in this round will be discarded. This cannot be undone.',
+      confirmText: 'Discard Submission',
+      cancelText: 'Keep Editing',
+      danger: true,
+      onConfirm: () => {
+        clearTaskExecution();
+        closeModal();
+        window.location.href = 'home.html';
+      }
     });
   });
 }
@@ -430,6 +469,7 @@ function finalizeSubmission(activity, session) {
   updateState(s => {
     s.submissions.push({
       id, activityId: activity.id, mobile: session.mobile, teamNo: session.teamNo,
+      name: (exec.name || '').trim(),
       submittedAt: toNaiveIsoLocal(now),
       deviceTimestamp: formatTimeSec(now),
       serverTimestamp: formatTimeSec(serverNow),

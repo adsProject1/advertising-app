@@ -138,6 +138,7 @@ const MOCK_DATA = {
   submissions: [
     {
       id: '10001', activityId: '10001', mobile: '9876543210', teamNo: '1',
+      name: 'Morning Shift - Round 1',
       submittedAt: '2026-08-20T10:12:43', deviceTimestamp: '10:12:43 AM', serverTimestamp: '10:12:49 AM',
       lat: 18.5612, lng: 73.9178, location: 'Phoenix Mall Pune — Hero Bike Promotion, Maharashtra', accuracy: 12,
       captures: [
@@ -148,6 +149,7 @@ const MOCK_DATA = {
     },
     {
       id: '10002', activityId: '10002', mobile: '9876543214', teamNo: '2',
+      name: 'Weekend Activation',
       submittedAt: '2026-08-20T10:15:00', deviceTimestamp: '10:15:00 AM', serverTimestamp: '10:15:06 AM',
       lat: 18.5158, lng: 73.9376, location: 'Amanora Mall Pune — Hero Bike Promotion, Maharashtra', accuracy: 22,
       captures: [
@@ -157,6 +159,7 @@ const MOCK_DATA = {
     },
     {
       id: '10003', activityId: '10005', mobile: '9876543210', teamNo: '3',
+      name: 'Cooler Demo - Evening',
       submittedAt: '2026-08-05T11:30:00', deviceTimestamp: '11:30:00 AM', serverTimestamp: '11:30:03 AM',
       lat: 12.9345, lng: 77.6101, location: 'Forum Mall Bengaluru — Cooler Demo, Karnataka', accuracy: 8,
       captures: [
