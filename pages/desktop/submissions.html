@@ -22,12 +22,15 @@
     <div class="filters-bar">
       <input type="text" class="form-control search-input" id="filter-search" placeholder="Search by activity, mobile, team no. or submission ID...">
       <select class="form-control" id="filter-activity"></select>
+      <button type="button" class="btn btn-secondary" id="toggle-expand-all-btn" style="margin-left:auto;">Expand All</button>
     </div>
+
+    <div class="selection-bar" id="selection-bar" style="display:none;"></div>
 
     <div class="table-wrap card" id="submissions-table-wrap">
       <table class="data-table">
         <thead><tr>
-          <th>Submission</th><th>Mobile</th><th>Team No</th><th>Activity</th><th>Submitted At</th><th>Location</th><th></th>
+          <th class="expand-col"></th><th>Submission</th><th>Mobile</th><th>Team No</th><th>Activity</th><th>Submitted At</th><th>Location</th><th></th>
         </tr></thead>
         <tbody id="submissions-tbody"></tbody>
       </table>
