@@ -257,9 +257,9 @@ function initHomePage() {
 
 function renderHomeStaging(exec, hasPriorSubmission) {
   const count = exec.captures.length;
-  const startLabel = hasPriorSubmission ? 'Start Another Submission' : 'Start Submission';
 
   if (count === 0) {
+    const startLabel = hasPriorSubmission ? 'Start Another Submission' : 'Start Submission';
     return `<div class="home-empty-cta">
       <div class="hec-icon">&#128247;</div>
       <p>No photos added yet. Tap below to select elements and capture your first photo.</p>
@@ -274,7 +274,7 @@ function renderHomeStaging(exec, hasPriorSubmission) {
       <div class="cb-tags">${c.elementNames.map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('')}</div>
     </div>`).join('');
 
-  html += `<button class="btn btn-secondary btn-block" id="add-photo-btn" style="margin-top:6px;">${startLabel}</button>`;
+  html += `<button class="btn btn-secondary btn-block" id="add-photo-btn" style="margin-top:6px;">Capture Another Photo</button>`;
 
   const remainingRequired = MIN_SUBMISSION_PHOTOS - count;
   html += `<p class="form-hint" style="text-align:center; margin: 10px 0;">${remainingRequired > 0
