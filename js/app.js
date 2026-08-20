@@ -10,7 +10,7 @@
  * switches back to the desktop app in the same browser.
  */
 
-const STORAGE_KEY = 'promotrack_state_v1';
+const STORAGE_KEY = 'promotrack_state_v9';
 const SESSION_KEY = 'promotrack_agent_session_v1';
 const EXEC_KEY = 'promotrack_task_execution_v1';
 
@@ -83,77 +83,69 @@ function resetDemoData() {
   getState();
 }
 
+// IDs are plain numeric strings (no letter prefix) — kept as strings, not
+// JS numbers, so they compare correctly against query-param values, which
+// always arrive from the URL as strings.
 function nextId(type) {
   const state = getState();
-  const prefixes = { event: 'EVT', activity: 'ACT', task: 'TSK', submission: 'SUB' };
   const n = state.nextIds[type];
   state.nextIds[type] = n + 1;
   saveState(state);
-  return prefixes[type] + '-' + n;
+  return String(n);
 }
 
 /* ---------------------------------------------------------------- */
 /* Lookups                                                           */
 /* ---------------------------------------------------------------- */
-/* There is no agent/user roster in this build: tasks are assigned    */
-/* offline and field officers simply log into an Activity Number.     */
-/* Submissions are attributed by the mobile number entered at login,  */
-/* not by a stored identity.                                          */
+/* There is no agent/user roster in this build: field officers are    */
+/* assigned to activities offline and simply log into an Activity     */
+/* Number. Submissions are attributed by the mobile number entered    */
+/* at login, not by a stored identity.                                */
 
-function getEvent(id) { return getState().events.find(e => e.id === id) || null; }
 function getActivity(id) { return getState().activities.find(a => a.id === id) || null; }
-function getTask(id) { return getState().tasks.find(t => t.id === id) || null; }
 function getSubmission(id) { return getState().submissions.find(s => s.id === id) || null; }
 
-function getActivitiesForEvent(eventId) { return getState().activities.filter(a => a.eventId === eventId); }
-function getTasksForActivity(activityId) { return getState().tasks.filter(t => t.activityId === activityId); }
-function getSubmissionsForTask(taskId) { return getState().submissions.filter(s => s.taskId === taskId); }
+// The element master list is persisted (not a static lookup) so custom
+// elements added from the Activity form's search stick around for future
+// activities. addElement() dedupes case-insensitively on the English name
+// and returns the existing entry instead of creating a near-duplicate.
+function getElements() { return getState().elements; }
+
+function addElement(en, hi) {
+  en = en.trim(); hi = hi.trim();
+  const existing = getElements().find(e => e.en.toLowerCase() === en.toLowerCase());
+  if (existing) return existing;
+  const el = { en, hi };
+  updateState(s => { s.elements.push(el); });
+  return el;
+}
+
 function getSubmissionsForActivity(activityId) { return getState().submissions.filter(s => s.activityId === activityId); }
 
-function getLatestSubmissionForTask(taskId) {
-  const subs = getSubmissionsForTask(taskId);
+function getLatestSubmissionForActivity(activityId) {
+  const subs = getSubmissionsForActivity(activityId);
   if (subs.length === 0) return null;
   return subs.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
 }
 
-function getSubmissionForTaskAndMobile(taskId, mobile) {
-  const subs = getSubmissionsForTask(taskId).filter(s => s.mobile === mobile);
-  if (subs.length === 0) return null;
-  return subs.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
-}
-
 /* ---------------------------------------------------------------- */
-/* Computed status / progress                                        */
+/* Computed status                                                   */
 /* ---------------------------------------------------------------- */
 
-// A task's status is shared across whoever is logged into its activity —
-// there is no per-agent breakdown since tasks are not assigned to
-// individuals. It reflects the most recent submission for the task.
-function computeTaskStatus(task) {
-  const latest = getLatestSubmissionForTask(task.id);
-  if (!latest) return 'Pending';
-  return latest.status === 'Rejected' ? 'Rejected' : 'Completed';
+// An activity's execution status is shared across whoever is logged
+// into it — there is no per-agent breakdown since activities are not
+// assigned to individuals. Submissions are auto-approved on submit,
+// so this simply reflects whether one has been submitted yet.
+function computeActivitySubmissionStatus(activity) {
+  return getLatestSubmissionForActivity(activity.id) ? 'Completed' : 'Pending';
 }
 
-function computeActivityStats(activity) {
-  const tasks = getTasksForActivity(activity.id);
-  let completed = 0;
-  tasks.forEach(t => { if (computeTaskStatus(t) === 'Completed') completed++; });
-  const pending = tasks.length - completed;
-  const progress = tasks.length === 0 ? 0 : Math.round((completed / tasks.length) * 100);
-  return { tasks: tasks.length, completed, pending, progress };
-}
-
-function computeEventStats(event) {
-  const activities = getActivitiesForEvent(event.id);
-  let totalTasks = 0, completedTasks = 0;
-  activities.forEach(a => {
-    const stats = computeActivityStats(a);
-    totalTasks += stats.tasks;
-    completedTasks += stats.completed;
-  });
-  const progress = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
-  return { activities: activities.length, tasks: totalTasks, completed: completedTasks, progress };
+// Lifecycle status derived from the activity's own Period dates
+// relative to the fixed demo "today" — Upcoming / Ongoing / Completed.
+function computeActivityLifecycle(activity) {
+  if (DEMO_TODAY < activity.periodFrom) return 'Upcoming';
+  if (DEMO_TODAY > activity.periodTo) return 'Completed';
+  return 'Ongoing';
 }
 
 /* ---------------------------------------------------------------- */
@@ -237,6 +229,25 @@ function getQueryParam(name) {
 }
 
 /* ---------------------------------------------------------------- */
+/* Element checkbox tiles — shared by the desktop Activity form and   */
+/* the mobile Add Photo element-selection step.                      */
+/* ---------------------------------------------------------------- */
+
+function renderElementTiles(containerId, allElements, selected) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = allElements.map(e => `
+    <label class="element-tile ${selected.includes(e) ? 'checked' : ''}">
+      <input type="checkbox" value="${escapeHtml(e)}" ${selected.includes(e) ? 'checked' : ''} onchange="this.closest('.element-tile').classList.toggle('checked', this.checked)">
+      ${escapeHtml(e)}
+    </label>`).join('');
+}
+
+function getCheckedValues(containerId) {
+  return Array.from(document.querySelectorAll('#' + containerId + ' input:checked')).map(cb => cb.value);
+}
+
+/* ---------------------------------------------------------------- */
 /* Toast notifications                                               */
 /* ---------------------------------------------------------------- */
 
@@ -300,8 +311,141 @@ function closeModal() {
   const root = document.getElementById('modal-root');
   if (root) root.innerHTML = '';
   document.body.classList.remove('modal-open');
-  if (typeof handleLightboxKeydown === 'function') document.removeEventListener('keydown', handleLightboxKeydown);
-  if (typeof LIGHTBOX_STATE !== 'undefined') LIGHTBOX_STATE = null;
+  document.removeEventListener('keydown', handleLightboxKeydown);
+  LIGHTBOX_STATE = null;
+}
+
+/* ---------------------------------------------------------------- */
+/* Submission photo grid + fullscreen lightbox — shared by desktop's  */
+/* Submission Detail and mobile's Submission Detail.                  */
+/* ---------------------------------------------------------------- */
+
+// Sample submission photos live in /assets — reused across submissions
+// since this is a wireframe prototype with no real photo uploads. Both
+// pages/desktop/*.html and pages/mobile/*.html sit one level under
+// pages/, so the same relative path works from either.
+const SUBMISSION_PHOTO_FILES = ['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg', '6.jpg', '7.jpg'];
+const SUBMISSION_PHOTO_BASE = '../../assets/';
+
+function hashStringToInt(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+// Deterministic per-submission pick so a given submission's photos stay
+// the same across re-renders. One photo per capture batch — the field
+// officer captured one photo per group of elements selected, so the
+// photo count mirrors sub.captures.length (falls back to 1 for
+// older/seed shapes).
+function getSubmissionPhotos(sub) {
+  const h = hashStringToInt(sub.id);
+  const count = (sub.captures && sub.captures.length) || 1;
+  const files = [];
+  for (let i = 0; i < count; i++) {
+    files.push(SUBMISSION_PHOTO_FILES[(h + i * 7) % SUBMISSION_PHOTO_FILES.length]);
+  }
+  return files;
+}
+
+function renderPhotoGrid(sub) {
+  const files = getSubmissionPhotos(sub);
+  const srcs = files.map(f => SUBMISSION_PHOTO_BASE + f);
+  const captures = sub.captures || [];
+  return `<div class="photo-grid">
+    ${srcs.map((src, i) => {
+      const tags = captures[i] ? captures[i].elementNames.join(', ') : `Photo ${i + 1}`;
+      return `
+      <div class="photo-card" onclick='openImageLightbox(${JSON.stringify(srcs)}, ${i})'>
+        <img src="${src}" alt="Submission photo ${i + 1}" loading="lazy">
+        <div class="photo-card-label"><span>${escapeHtml(tags)}</span><span>&#128269;</span></div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+let LIGHTBOX_STATE = null;
+
+function openImageLightbox(srcs, index) {
+  LIGHTBOX_STATE = { srcs, index, zoomed: false, tx: 0, ty: 0 };
+  const root = ensureModalRoot();
+  root.innerHTML = `
+    <div class="lightbox-overlay" id="lightbox-overlay">
+      <button class="lightbox-close" onclick="closeModal()" aria-label="Close">&times;</button>
+      <div class="lightbox-counter" id="lightbox-counter"></div>
+      ${srcs.length > 1 ? `<button class="lightbox-nav lightbox-prev" onclick="lightboxStep(-1)" aria-label="Previous">&#8249;</button>
+      <button class="lightbox-nav lightbox-next" onclick="lightboxStep(1)" aria-label="Next">&#8250;</button>` : ''}
+      <div class="lightbox-stage" id="lightbox-stage">
+        <img class="lightbox-img" id="lightbox-img" draggable="false">
+      </div>
+      <div class="lightbox-hint">Click image to zoom &middot; drag to pan while zoomed &middot; Esc to close</div>
+    </div>`;
+  document.body.classList.add('modal-open');
+  document.getElementById('lightbox-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'lightbox-overlay' || e.target.id === 'lightbox-stage') closeModal();
+  });
+  document.addEventListener('keydown', handleLightboxKeydown);
+  renderLightboxImage();
+}
+
+function renderLightboxImage() {
+  if (!LIGHTBOX_STATE) return;
+  const img = document.getElementById('lightbox-img');
+  if (!img) return;
+  img.src = LIGHTBOX_STATE.srcs[LIGHTBOX_STATE.index];
+  img.classList.remove('zoomed');
+  img.style.transform = '';
+  LIGHTBOX_STATE.zoomed = false;
+  img.onclick = (e) => { e.stopPropagation(); toggleLightboxZoom(e); };
+  img.onmousedown = lightboxDragStart;
+  document.getElementById('lightbox-counter').textContent = LIGHTBOX_STATE.srcs.length > 1
+    ? `${LIGHTBOX_STATE.index + 1} / ${LIGHTBOX_STATE.srcs.length}` : '';
+}
+
+function toggleLightboxZoom(e) {
+  const img = document.getElementById('lightbox-img');
+  if (!img || !LIGHTBOX_STATE) return;
+  LIGHTBOX_STATE.zoomed = !LIGHTBOX_STATE.zoomed;
+  if (LIGHTBOX_STATE.zoomed) {
+    img.classList.add('zoomed');
+    img.style.transform = 'scale(2.2)';
+  } else {
+    img.classList.remove('zoomed');
+    img.style.transform = '';
+  }
+}
+
+function lightboxStep(delta) {
+  if (!LIGHTBOX_STATE) return;
+  const n = LIGHTBOX_STATE.srcs.length;
+  LIGHTBOX_STATE.index = (LIGHTBOX_STATE.index + delta + n) % n;
+  renderLightboxImage();
+}
+
+function handleLightboxKeydown(e) {
+  if (!LIGHTBOX_STATE) return;
+  if (e.key === 'Escape') closeModal();
+  else if (e.key === 'ArrowLeft') lightboxStep(-1);
+  else if (e.key === 'ArrowRight') lightboxStep(1);
+}
+
+function lightboxDragStart(e) {
+  const img = document.getElementById('lightbox-img');
+  if (!img || !LIGHTBOX_STATE || !LIGHTBOX_STATE.zoomed) return;
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const startTx = LIGHTBOX_STATE.tx, startTy = LIGHTBOX_STATE.ty;
+  function onMove(ev) {
+    LIGHTBOX_STATE.tx = startTx + (ev.clientX - startX);
+    LIGHTBOX_STATE.ty = startTy + (ev.clientY - startY);
+    img.style.transform = `scale(2.2) translate(${LIGHTBOX_STATE.tx / 2.2}px, ${LIGHTBOX_STATE.ty / 2.2}px)`;
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 function confirmDialog(opts) {
@@ -393,3 +537,24 @@ function requireAgentSession() {
   }
   return session;
 }
+
+/* ---------------------------------------------------------------- */
+/* Global lowercase-only text input enforcement                      */
+/* ---------------------------------------------------------------- */
+
+// Delegated on document (not per-field) so it automatically covers every
+// text input/textarea on every page — desktop and mobile alike — including
+// ones injected into the DOM later (e.g. the Add Element inputs rendered
+// inside a search dropdown). toLowerCase() is a no-op on digits/Devanagari,
+// so this is safe to run over OTP digits, phone numbers, etc. too.
+function enforceLowercaseInputs() {
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el.matches || !el.matches('input[type="text"], input[type="tel"], input[type="search"], textarea')) return;
+    const pos = el.selectionStart;
+    if (el.value === el.value.toLowerCase()) return;
+    el.value = el.value.toLowerCase();
+    if (typeof pos === 'number') el.setSelectionRange(pos, pos);
+  });
+}
+enforceLowercaseInputs();

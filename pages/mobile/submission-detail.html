@@ -3,17 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Tasks — PromoTrack Agent</title>
+<title>Submission Detail — PromoTrack Agent</title>
 <link rel="stylesheet" href="../../css/styles.css">
 <link rel="stylesheet" href="../../css/mobile.css">
 </head>
 <body class="mobile-app">
 <div class="mobile-frame">
-  <div class="mobile-screen">
-    <div class="mobile-topbar"><div class="mobile-topbar-title">My Tasks</div></div>
-    <div class="mobile-content" id="mobile-tasks-content"></div>
+  <div class="mobile-screen no-nav">
+    <div id="mobile-topbar-mount"></div>
+    <div id="submission-detail-root"></div>
   </div>
-  <div id="mobile-bottomnav-mount"></div>
 </div>
 
 <script src="../../js/mock-data.js"></script>
@@ -21,7 +20,7 @@
 <script src="../../js/mobile.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  initMobileTasksPage();
+  initMobileSubmissionDetailPage();
 });
 </script>
 </body>

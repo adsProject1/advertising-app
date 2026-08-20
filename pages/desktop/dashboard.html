@@ -16,27 +16,26 @@
       <div class="page-header">
         <div>
           <h1>Dashboard</h1>
-          <div class="subtitle">Overview of all events, activities and field execution.</div>
+          <div class="subtitle">Overview of all activities and field execution.</div>
         </div>
       </div>
 
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-icon">&#128197;</div><div class="stat-body"><div class="stat-label">Total Events</div><div class="stat-value" id="stat-total-events">0</div></div></div>
-        <div class="stat-card"><div class="stat-icon">&#9889;</div><div class="stat-body"><div class="stat-label">Active Events</div><div class="stat-value" id="stat-active-events">0</div></div></div>
-        <div class="stat-card"><div class="stat-icon">&#128205;</div><div class="stat-body"><div class="stat-label">Activities</div><div class="stat-value" id="stat-activities">0</div></div></div>
-        <div class="stat-card"><div class="stat-icon">&#8987;</div><div class="stat-body"><div class="stat-label">Pending Tasks</div><div class="stat-value" id="stat-pending-tasks">0</div></div></div>
-        <div class="stat-card"><div class="stat-icon">&#9989;</div><div class="stat-body"><div class="stat-label">Completed Tasks</div><div class="stat-value" id="stat-completed-tasks">0</div></div></div>
+        <div class="stat-card stat-card-clickable" id="stat-card-all" onclick="setDashboardFilter('all')"><div class="stat-icon">&#128205;</div><div class="stat-body"><div class="stat-label">Total Activities</div><div class="stat-value" id="stat-total-activities">0</div></div></div>
+        <div class="stat-card stat-card-clickable" id="stat-card-ongoing" onclick="setDashboardFilter('ongoing')"><div class="stat-icon">&#9889;</div><div class="stat-body"><div class="stat-label">Ongoing Activities</div><div class="stat-value" id="stat-ongoing-activities">0</div></div></div>
+        <div class="stat-card stat-card-clickable" id="stat-card-submissions" onclick="setDashboardFilter('submissions')"><div class="stat-icon">&#128247;</div><div class="stat-body"><div class="stat-label">Total Submissions</div><div class="stat-value" id="stat-total-submissions">0</div></div></div>
+        <div class="stat-card stat-card-clickable" id="stat-card-completed" onclick="setDashboardFilter('completed')"><div class="stat-icon">&#9989;</div><div class="stat-body"><div class="stat-label">Completed Activities</div><div class="stat-value" id="stat-completed-activities">0</div></div></div>
       </div>
     </div>
 
     <div class="card" style="margin-top: var(--sp-6);">
-      <div class="card-header"><h3>Event Execution Overview</h3><a class="btn btn-secondary btn-sm" href="events.html">View All Events</a></div>
+      <div class="card-header"><h3 id="dashboard-activities-title">Recent Activities</h3></div>
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr>
-            <th>Event</th><th>Date</th><th class="num">Activities</th><th class="num">Tasks</th><th>Progress</th><th>Status</th>
+            <th>Activity</th><th>State</th><th>AO Name</th><th>Period</th><th class="num">Submissions</th><th>Status</th>
           </tr></thead>
-          <tbody id="dashboard-events-tbody"></tbody>
+          <tbody id="dashboard-activities-tbody"></tbody>
         </table>
       </div>
     </div>

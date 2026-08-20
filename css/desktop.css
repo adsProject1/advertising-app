@@ -80,20 +80,6 @@ body.desktop-app { background: var(--color-bg); }
 .today-activity-stats strong { color: var(--color-text); }
 
 /* ------------------------------------------------------------ */
-/* Activity / Event cards grid (used on event-detail, activities)  */
-/* ------------------------------------------------------------ */
-
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--sp-4); }
-.entity-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--sp-5); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: var(--sp-3); }
-.entity-card-top { display: flex; align-items: flex-start; justify-content: space-between; }
-.entity-card-id { font-size: 11px; font-weight: 700; color: var(--color-text-faint); letter-spacing: 0.03em; }
-.entity-card-title { font-size: 15px; font-weight: 650; margin-top: 3px; }
-.entity-card-meta { font-size: 12.5px; color: var(--color-text-muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.entity-card-stats { display: flex; gap: var(--sp-5); font-size: 12.5px; color: var(--color-text-muted); }
-.entity-card-stats strong { display: block; font-size: 15px; color: var(--color-text); font-weight: 700; }
-.entity-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: var(--sp-2); }
-
-/* ------------------------------------------------------------ */
 /* Detail page header                                              */
 /* ------------------------------------------------------------ */
 
@@ -114,17 +100,28 @@ body.desktop-app { background: var(--color-bg); }
 .map-placeholder { height: 220px; }
 
 /* ------------------------------------------------------------ */
-/* Element checkbox tiles                                          */
+/* Element search + multi-select (Activity form). Element tiles     */
+/* themselves stay in styles.css, shared with the mobile app's       */
+/* Add Photo element-selection step.                                 */
 /* ------------------------------------------------------------ */
 
-.element-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.element-tile { display: flex; align-items: center; gap: 9px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; font-size: 13px; font-weight: 550; }
-.element-tile:hover { border-color: var(--color-border-strong); }
-.element-tile.checked { border-color: var(--color-primary); background: var(--color-primary-light); color: var(--color-primary-dark); }
-.element-tile input { width: 15px; height: 15px; }
+.element-search-wrap { position: relative; }
+.element-search-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md); max-height: 280px; overflow-y: auto;
+}
+.element-search-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; cursor: pointer; font-size: 13.5px; }
+.element-search-item:hover { background: var(--color-gray-bg); }
+.element-search-item .element-hi { color: var(--color-text-faint); font-size: 12.5px; }
+.element-search-empty { padding: 10px 14px; font-size: 13px; color: var(--color-text-faint); }
+.element-search-addnew { padding: 10px 14px 14px; border-top: 1px solid var(--color-border); }
+.element-search-addnew-inputs { display: flex; gap: 8px; margin-bottom: 8px; }
+.element-search-addnew-inputs .form-control { flex: 1; }
 
-.add-custom-row { display: flex; gap: 8px; margin-top: var(--sp-3); }
-.add-custom-row .form-control { flex: 1; }
+.tag-removable { display: inline-flex; align-items: center; gap: 6px; }
+.tag-removable button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; opacity: 0.6; }
+.tag-removable button:hover { opacity: 1; }
 
 /* ------------------------------------------------------------ */
 /* Success state (post create)                                     */
@@ -145,32 +142,6 @@ body.desktop-app { background: var(--color-bg); }
 .tab-btn { padding: 10px 4px; margin-right: var(--sp-5); font-size: 13.5px; font-weight: 650; color: var(--color-text-muted); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; }
 .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
 
-/* ------------------------------------------------------------ */
-/* Photo evidence (submission detail)                               */
-/* ------------------------------------------------------------ */
-
-.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-5); }
-.photo-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm); cursor: zoom-in; padding: 0; }
-.photo-card img { width: 100%; height: 150px; object-fit: cover; display: block; transition: transform .15s ease; }
-.photo-card:hover img { transform: scale(1.04); }
-.photo-card-label { padding: 7px 10px; font-size: 11px; font-weight: 600; color: var(--color-text-muted); border-top: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; }
-
-.lightbox-overlay { position: fixed; inset: 0; background: rgba(8, 10, 16, 0.92); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-.lightbox-stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.lightbox-img { max-width: 90vw; max-height: 86vh; cursor: zoom-in; transition: transform .12s ease; user-select: none; touch-action: none; box-shadow: var(--shadow-lg); }
-.lightbox-img.zoomed { cursor: grab; }
-.lightbox-img.zoomed:active { cursor: grabbing; }
-.lightbox-close { position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,0.12); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer; z-index: 1001; }
-.lightbox-close:hover { background: rgba(255,255,255,0.22); }
-.lightbox-counter { position: absolute; top: 24px; left: 24px; color: rgba(255,255,255,0.8); font-size: 13px; font-weight: 600; z-index: 1001; }
-.lightbox-hint { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.65); font-size: 12px; z-index: 1001; white-space: nowrap; }
-.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.12); color: #fff; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 1001; }
-.lightbox-nav:hover { background: rgba(255,255,255,0.22); }
-.lightbox-prev { left: 18px; }
-.lightbox-next { right: 18px; }
-
-.rejection-box { background: var(--color-red-bg); border: 1px solid rgba(198, 43, 63, 0.25); border-radius: var(--radius-md); padding: var(--sp-4); margin-top: var(--sp-4); }
-.rejection-box .rejection-label { font-size: 11.5px; font-weight: 700; color: var(--color-red); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
 
 /* ------------------------------------------------------------ */
 /* Login-less settings page                                        */

@@ -14,8 +14,8 @@
   <main class="main-content main-content-narrow">
     <div class="page-header">
       <div>
-        <h1 id="page-title">Create Activity</h1>
-        <div class="subtitle">An activity always belongs to an event and represents one location-level execution.</div>
+        <h1 id="page-title">Add Activity</h1>
+        <div class="subtitle">An activity is the single unit of field execution.</div>
       </div>
     </div>
 
@@ -24,75 +24,58 @@
         <div class="form-section-title">Activity Information</div>
         <div class="form-grid">
           <div class="form-group">
-            <label>Event <span class="req">*</span></label>
-            <select class="form-control" id="activity-event"></select>
-            <div class="field-error" id="activity-event-error"></div>
+            <label>State Name <span class="req">*</span></label>
+            <select class="form-control" id="activity-state"></select>
+            <div class="field-error" id="activity-state-error"></div>
           </div>
           <div class="form-group">
+            <label>AO Name <span class="req">*</span></label>
+            <select class="form-control" id="activity-ao"></select>
+            <div class="field-error" id="activity-ao-error"></div>
+          </div>
+          <div class="form-group full">
             <label>Activity Name <span class="req">*</span></label>
             <input type="text" class="form-control" id="activity-name" placeholder="e.g. Phoenix Mall Pune">
             <div class="field-error" id="activity-name-error"></div>
           </div>
-          <div class="form-group full">
-            <label>Activity Description</label>
-            <textarea class="form-control" id="activity-description" placeholder="Brief description of this activity"></textarea>
+          <div class="form-group">
+            <label>Period From <span class="req">*</span></label>
+            <input type="date" class="form-control" id="activity-period-from">
+            <div class="field-error" id="activity-period-from-error"></div>
           </div>
           <div class="form-group">
-            <label>Activity Type <span class="req">*</span></label>
-            <select class="form-control" id="activity-type"></select>
-            <div class="field-error" id="activity-type-error"></div>
+            <label>Period To <span class="req">*</span></label>
+            <input type="date" class="form-control" id="activity-period-to">
+            <div class="field-error" id="activity-period-to-error"></div>
+          </div>
+          <div class="form-group">
+            <label>Number of Team/Vans <span class="req">*</span></label>
+            <input type="number" min="1" class="form-control" id="activity-teamvan" placeholder="e.g. 2">
+            <div class="field-error" id="activity-teamvan-error"></div>
           </div>
         </div>
       </div>
 
-      <div class="form-section">
-        <div class="form-section-title">Location</div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>City <span class="req">*</span></label>
-            <input type="text" class="form-control" id="activity-city" placeholder="e.g. Pune">
-            <div class="field-error" id="activity-city-error"></div>
-          </div>
-          <div class="form-group">
-            <label>Location Name <span class="req">*</span></label>
-            <input type="text" class="form-control" id="activity-location-name" placeholder="e.g. Phoenix Marketcity">
-            <div class="field-error" id="activity-location-name-error"></div>
-          </div>
-          <div class="form-group">
-            <label>Address Line 1</label>
-            <input type="text" class="form-control" id="activity-address-line1" placeholder="e.g. Viman Nagar">
-          </div>
-          <div class="form-group">
-            <label>Address Line 2</label>
-            <input type="text" class="form-control" id="activity-address-line2" placeholder="e.g. Near Airport Road">
-          </div>
-          <div class="form-group">
-            <label>PIN Code</label>
-            <input type="text" class="form-control" id="activity-pin" placeholder="e.g. 411014">
-          </div>
-        </div>
+      <div class="form-section" id="team-locations-section" style="display:none;">
+        <div class="form-section-title">Team / Van Locations <span class="req">*</span></div>
+        <p class="form-hint" style="margin-bottom: var(--sp-3);">Enter a location for each team/van &mdash; the next box appears once the current one is filled.</p>
+        <div class="form-grid" id="team-locations-list"></div>
+        <div class="field-error" id="team-locations-error"></div>
       </div>
 
       <div class="form-section">
-        <div class="form-section-title">Activity Elements</div>
-        <div class="element-tiles" id="activity-elements-tiles"></div>
-      </div>
-
-      <div class="form-section">
-        <div class="form-section-title">Field Officer</div>
-        <div class="form-group full" style="margin-bottom:0;">
-          <label>Field Officer / Agent Name (Optional)</label>
-          <input type="text" class="form-control" id="activity-field-officer" placeholder="e.g. Raj Kumar">
-          <p class="form-hint">Tasks are assigned offline. The field officer logs into the mobile app using this Activity Number and their own mobile number &mdash; no selection needed here.</p>
+        <div class="form-section-title">Element Name <span class="req">*</span></div>
+        <div class="tag-list" id="activity-elements-selected" style="margin-bottom: var(--sp-3);"></div>
+        <div class="element-search-wrap" id="element-search-wrap">
+          <input type="text" class="form-control" id="element-search-input" placeholder="Search elements (English or Hindi)..." autocomplete="off">
+          <div class="element-search-dropdown" id="element-search-dropdown" style="display:none;"></div>
         </div>
+        <div class="field-error" id="activity-elements-error"></div>
       </div>
 
       <div class="form-actions spread">
         <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
-        <div style="display:flex; gap: var(--sp-3);">
-          <button class="btn btn-secondary" id="save-draft-btn">Save Draft</button>
-          <button class="btn btn-primary" id="create-activity-btn">Create Activity</button>
-        </div>
+        <button class="btn btn-primary" id="create-activity-btn">Create Activity</button>
       </div>
     </div>
 
