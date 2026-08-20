@@ -1,6 +1,6 @@
 # PromoTrack — Advertisement Campaign & Field Activity Management System
 
-A clickable HTML / CSS / vanilla JavaScript **wireframe prototype** for an advertisement and product-promotion agency that runs campaigns, mall activations, roadshows and brand promotions.
+A clickable HTML / CSS / vanilla JavaScript **wireframe prototype** for an advertisement and product-promotion agency that runs field promotion activities.
 
 This build has **no backend, no database, and no real authentication, GPS, camera or file upload APIs**. All data is mock data, seeded into `localStorage` on first load, so the prototype can be demonstrated end-to-end in a browser with zero setup.
 
@@ -12,22 +12,22 @@ Two applications, sharing one in-browser dataset:
 
 ### 1. Desktop Admin application
 Used by agency operations staff to run the business:
-- Create and manage **Events** (campaigns)
-- Create and manage **Activities** inside an Event, each with an auto-generated Activity Number (`ACT-10001`, `ACT-10002`, ...)
-- Create and manage **Tasks** inside an Activity, with configurable evidence requirements (photo / GPS / timestamp / comment / customer details)
-- Monitor task execution and review **Submissions** — approve / reject field evidence, including a photo gallery with a fullscreen, zoomable image viewer
-- Dashboard view for execution progress
+- Add and manage **Activities** — a flat list, each with an auto-generated numeric Activity Number (`10001`, `10002`, ...), a State Name, AO Name, Period (date range), one or more Elements, and a Number of Team/Vans
+- Review **Submissions** — field evidence (photos) submitted by mobile users, auto-approved on submit, with a fullscreen zoomable photo viewer
+- Dashboard view for activity/submission overview
 
-There is **no agent roster**. Field officers are assigned to activities offline (outside the system); ops can optionally jot a field officer's name against an Activity for reference, but access to the mobile app is controlled entirely by the Activity Number itself.
+There is **no agent roster**. Field officers are assigned to activities offline (outside the system); access to the mobile app is controlled entirely by the Activity Number.
 
 ### 2. Android Agent application (mobile web view)
 Used by field officers on the ground:
-- Log in with **Activity Number + Mobile Number + OTP** — any mobile number can be used, it is not checked against a roster
-- View all Tasks that exist under that Activity Number
-- Start a Task and walk through a guided capture flow: **Photo → GPS Location → Timestamp → Comment → Review → Submit**
-- See submission status and a personal history of what that mobile number has submitted
+- Log in with **Activity Number + Team No + Mobile Number + OTP** — Activity Number, Team No and mobile number are all numeric-only entry (non-digits are blocked as you type), not checked against any roster
+- Home starts empty except a **Start Submission** button
+- Start Submission flow: select which of the activity's elements this photo covers (checkboxes, elements can be reused across rounds) → capture a mock photo → repeat as needed
+- A minimum of **3 photos** must be captured before **Submit All** is enabled; it sends every captured photo as one submission, auto-approved instantly
+- Submitting doesn't lock the activity — Home always offers Start Submission again, so a field officer can submit multiple times for the same activity
+- See a personal history of what that mobile number has submitted — tap any entry to open a full detail view with a photo preview grid (tap a photo for a fullscreen, zoomable lightbox)
 
-Because both apps read and write the same `localStorage` state, a task submitted on the mobile app immediately shows up as a submission in the Desktop app's Submissions list (and vice versa — an Activity created on desktop is what the mobile app logs into). Task status is shared across the whole Activity: once any field officer submits evidence for a task, it shows as Completed for anyone else logged into that same Activity Number.
+Because both apps read and write the same `localStorage` state, a submission made on the mobile app immediately shows up in the Desktop app's Submissions list (and vice versa — an Activity created on desktop is what the mobile app logs into).
 
 ---
 
@@ -51,26 +51,25 @@ From the landing page, use the **Desktop Admin** or **Android Agent** card (or t
 ## Demo mobile login
 
 ```
-Activity Number : ACT-10001
+Activity Number : 10001
+Team No         : a serial number starting from 1 (e.g. 1, 2, 3 — not 0, not padded like 01)
 Mobile Number   : any 10-digit number (e.g. 9876543210)
 OTP             : 123456
 ```
 
-`ACT-10001 — Phoenix Mall Pune` (under the *Raksha Bandhan — Hero Bike Promotion* event) is noted with field officer **Raj Kumar** for reference. Its **Morning Photoshoot** task is already completed (approved) in the seed data; **Afternoon Photoshoot**, **Evening Photoshoot** and **Customer Interaction Log** are pending, ready to be executed live in the demo.
-
-To see the reject → resubmit flow, log into `ACT-10002` instead — its Morning Photoshoot task has a rejected submission waiting to be resubmitted.
+`10001 — Phoenix Mall Pune` already has an approved submission seeded, so Home shows that submission's summary alongside the still-available Start Submission button. `10003` has no submission yet and only one element ("Photo Booth Activation") — good for demoing that the same element can be selected repeatedly to reach the 3-photo minimum. `10002` and other activities have varied States/AO Names/Periods to demo the desktop filters.
 
 ---
 
 ## Suggested end-to-end walkthrough
 
 **Desktop:**
-`Dashboard → Events → Create Event → Event Detail → + Add Activity → Activity Detail → + Add Task → Task Detail → Submissions → Submission Detail → Approve / Reject`
+`Dashboard → Activities → + Add Activity → Activity Detail → Submissions → Submission Detail`
 
 **Mobile:**
-`Login (ACT-10001 / any mobile) → OTP (123456) → Home → Start Task → Capture Photo → Location → Timestamp & Comment → Review → Submit → Success → Task shows Completed`
+`Login (10003 / any Team No / any mobile) → OTP (123456) → Home (Start Submission) → Select Elements → Capture Photo → Home (staged, repeat until 3+ photos) → Submit All → Success → Home (still offers Start Submission again)`
 
-After submitting a task on mobile, switch to the Desktop app's **Submissions** page (or the relevant **Task Detail** page) in the same browser — the new submission appears immediately, in "Pending Review" status, ready to Approve or Reject.
+After submitting on mobile, switch to the Desktop app's **Submissions** page (or that Activity's Detail page) in the same browser — the new submission appears immediately, already Approved.
 
 ---
 
@@ -82,35 +81,31 @@ advertising app/
 ├── assets/                     Sample submission photos (1.jpg – 7.jpg), used to mock
 │                               photo evidence on the Submission Detail page
 ├── css/
-│   ├── styles.css              Shared design system (tokens, buttons, tables, badges, forms, modals, toasts...)
+│   ├── styles.css              Shared design system (tokens, buttons, tables, badges, forms,
+│   │                           modals, toasts, element-tiles...)
 │   ├── desktop.css             Desktop shell layout (header, sidebar, cards, detail pages, photo gallery/lightbox)
-│   └── mobile.css              Mobile app shell (phone frame, bottom nav, capture wizard, etc.)
+│   └── mobile.css              Mobile app shell (phone frame, bottom nav, Add Photo flow, etc.)
 ├── js/
-│   ├── mock-data.js            Seed data: events, activities, tasks, submissions
-│   ├── app.js                  Shared state (localStorage), ID generation, computed status/progress, UI helpers
+│   ├── mock-data.js            Seed data: activities, submissions + lookup lists (states, AO names, elements)
+│   ├── app.js                  Shared state (localStorage), ID generation, computed status, element-tile helpers, UI helpers
 │   ├── desktop.js              Desktop Admin page controllers
-│   └── mobile.js               Android Agent page controllers + task execution wizard
+│   └── mobile.js               Android Agent page controllers + Add Photo flow
 └── pages/
-    ├── desktop/                13 pages: dashboard, events, event-create, event-detail,
-    │                           activities, activity-create, activity-detail, tasks,
-    │                           task-create, task-detail, submissions, submission-detail,
-    │                           settings
-    └── mobile/                 10 pages: login, otp, home, tasks, task-detail, capture,
-                                review, success, history, profile
+    ├── desktop/                7 pages: dashboard, activities, activity-create, activity-detail,
+    │                           submissions, submission-detail, settings
+    └── mobile/                 7 pages: login, otp, home, capture, success, history, profile
 ```
 
 ---
 
 ## Business rules implemented
 
-- One Event → many Activities. One Activity → exactly one Event.
-- One Activity → many Tasks.
-- Activity Numbers (`ACT-10001…`) and Task Numbers (`TSK-10001…`) are always auto-generated, never typed by the user — the create/edit forms don't even display the ID field.
-- There is no agent/user roster. Tasks are assigned to field officers offline; a field officer's only credential is the Activity Number itself (plus a mobile number + OTP, unchecked against any roster).
-- A field officer can see and execute any Task under the Activity Number they logged into.
-- A task's status is shared across the whole Activity: it becomes Completed as soon as anyone submits evidence for it, regardless of who.
-- Submitting a task's evidence moves it to "Pending Review"; a desktop reviewer can Approve or Reject (with a required reason) it from there. A rejected task can be resubmitted by anyone logged into that activity.
-- Deleting an Event/Activity/Task cascades to its children (activities/tasks/submissions) with a confirmation dialog first.
+- Activity is the only entity — no Event grouping, no separate Task records.
+- Activity Numbers (`10001…`) and Submission Numbers (`10001…`) are plain numeric strings, always auto-generated, never typed by the user.
+- There is no agent/user roster. Activities are assigned to field officers offline; a field officer's only credentials are the Activity Number, a self-entered Team No (a serial number starting from 1), and a mobile number + OTP — none checked against a roster.
+- A field officer can execute any Activity they log into, tagging each captured photo with the elements it covers.
+- Submissions are **auto-approved** the moment they're submitted — there is no manual review/approve/reject step.
+- Deleting an Activity cascades to its Submissions, with a confirmation dialog first.
 
 ## Limitations (by design, for this phase)
 

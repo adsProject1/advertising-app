@@ -16,12 +16,17 @@
       </div>
       <div class="mobile-auth-logo">PT</div>
       <h1>Agent Login</h1>
-      <p class="auth-sub">Enter your Activity Number and your mobile number. Tasks are assigned offline &mdash; any mobile number can be used to access a valid Activity Number.</p>
+      <p class="auth-sub">Enter your Activity Number, Team No and mobile number. Activities are assigned offline &mdash; any team no. and mobile number can be used to access a valid Activity Number.</p>
 
       <div class="form-group">
         <label>Activity Number</label>
-        <input type="text" class="form-control" id="login-activity" placeholder="ACT-10001">
+        <input type="tel" class="form-control" id="login-activity" placeholder="10001">
         <div class="field-error" id="login-activity-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Team No</label>
+        <input type="tel" class="form-control" id="login-teamno" placeholder="e.g. 1">
+        <div class="field-error" id="login-teamno-error"></div>
       </div>
       <div class="form-group">
         <label>Mobile Number</label>
@@ -32,8 +37,8 @@
       <button class="btn btn-primary btn-block" id="send-otp-btn">Send OTP</button>
 
       <p class="form-hint" style="margin-top: var(--sp-6); text-align:center; line-height:1.7;">
-        Demo login &mdash; Activity <strong>ACT-10001</strong><br>
-        Any 10-digit mobile number &middot; OTP <strong>123456</strong>
+        Demo login &mdash; Activity <strong>10001</strong><br>
+        Any Team No. starting from 1 (e.g. 1, 2, 3) &middot; Any 10-digit mobile number &middot; OTP <strong>123456</strong>
       </p>
     </div>
   </div>

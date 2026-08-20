@@ -1,17 +1,17 @@
 /**
  * mobile.js
- * Controller logic for the Mobile Agent application: login/OTP,
- * activity home, task list, and the task execution wizard (capture ->
- * location -> details -> review -> submit -> success). State is
- * shared with the Desktop Admin app via app.js / localStorage, so a
- * task submitted here is immediately visible in desktop Submissions.
+ * Controller logic for the Mobile Agent application: login/OTP, and
+ * the Add Photo flow (select elements -> capture photo -> repeat ->
+ * submit all at once). State is shared with the Desktop Admin app via
+ * app.js / localStorage, so a submission made here is immediately
+ * visible in desktop Submissions.
  *
  * There is no agent roster: a field officer logs in with an Activity
- * Number + their own mobile number (mock OTP). Access is scoped to
- * the Activity Number only — whoever holds it can see and execute
- * whatever tasks exist under that activity. Task status is therefore
- * shared across anyone logged into the same activity, not tracked
- * per person; submissions are attributed by mobile number.
+ * Number + Team No + their own mobile number (mock OTP) and executes
+ * that one Activity directly. Home starts empty except for an "Add
+ * Photo" button; each round through the Add Photo flow tags a mock
+ * photo with whichever elements were selected for it, and all
+ * captured photos are submitted together in one go, auto-approved.
  */
 
 const PENDING_LOGIN_KEY = 'promotrack_pending_login_v1';
@@ -20,13 +20,6 @@ const MOCK_OTP = '123456';
 /* ================================================================ */
 /* Shared mobile UI helpers                                          */
 /* ================================================================ */
-
-function greetingWord() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 17) return 'Good Afternoon';
-  return 'Good Evening';
-}
 
 function formatTimeSec(d) {
   let h = d.getHours();
@@ -60,48 +53,10 @@ function renderMobileBottomNav(activeKey) {
   if (!el) return;
   const items = [
     { key: 'home', label: 'Home', icon: '&#8962;', href: 'home.html' },
-    { key: 'tasks', label: 'Tasks', icon: '&#9989;', href: 'tasks.html' },
     { key: 'history', label: 'History', icon: '&#128336;', href: 'history.html' },
     { key: 'profile', label: 'Profile', icon: '&#128100;', href: 'profile.html' }
   ];
   el.innerHTML = `<nav class="mobile-bottomnav">${items.map(i => `<a href="${i.href}" class="${i.key === activeKey ? 'active' : ''}"><span class="nav-ic">${i.icon}</span>${i.label}</a>`).join('')}</nav>`;
-}
-
-// Task status is shared across the activity (not per-person), so the
-// same card renders identically for whoever is logged into it.
-function renderMobileTaskCard(task) {
-  const status = computeTaskStatus(task);
-  const reqTags = [];
-  if (task.requirements.photo) reqTags.push('Photo Capture');
-  if (task.requirements.gps) reqTags.push('GPS Required');
-  if (task.requirements.timestamp) reqTags.push('Timestamp Required');
-  if (task.requirements.comment) reqTags.push('Comment');
-  if (task.requirements.customerDetails) reqTags.push('Customer Details');
-
-  let actionBtn;
-  if (status === 'Completed') actionBtn = `<a class="btn btn-secondary btn-sm" href="task-detail.html?id=${task.id}">View Submission</a>`;
-  else if (status === 'Rejected') actionBtn = `<a class="btn btn-danger btn-sm" href="task-detail.html?id=${task.id}">Resubmit Task</a>`;
-  else actionBtn = `<a class="btn btn-primary btn-sm" href="task-detail.html?id=${task.id}">Start Task</a>`;
-
-  return `<div class="mobile-task-card">
-    <div class="mobile-task-card-top">
-      <div>
-        <div class="mobile-task-name">${escapeHtml(task.name)}</div>
-        <div class="mobile-task-time">${escapeHtml(task.scheduledTime || 'Unscheduled')}</div>
-      </div>
-      ${badge(status)}
-    </div>
-    <div class="mobile-task-tags">${reqTags.map(t => `<span class="mobile-task-tag">${t}</span>`).join('')}</div>
-    <div class="mobile-task-card-footer">
-      <span class="text-faint" style="font-size:12px;">${escapeHtml(task.type)}</span>
-      ${actionBtn}
-    </div>
-  </div>`;
-}
-
-function renderMobileTaskSection(title, list) {
-  if (list.length === 0) return '';
-  return `<div class="mobile-section-title">${title} <span class="count-pill">${list.length}</span></div>${list.map(t => renderMobileTaskCard(t)).join('')}`;
 }
 
 /* ================================================================ */
@@ -112,16 +67,26 @@ function initLoginPage() {
   const existing = getAgentSession();
   if (existing) { window.location.href = 'home.html'; return; }
 
-  document.getElementById('login-activity').value = 'ACT-10001';
+  document.getElementById('login-activity').value = '10001';
+  document.getElementById('login-teamno').value = '1';
   document.getElementById('login-mobile').value = '9876543210';
+
+  // Activity ID, Team No and Mobile Number are all numeric-only identifiers
+  // — strip anything non-digit as the user types, same treatment as the
+  // OTP boxes get.
+  const teamNoInput = document.getElementById('login-teamno');
+  teamNoInput.addEventListener('input', () => { teamNoInput.value = teamNoInput.value.replace(/[^0-9]/g, ''); });
+  const activityInput = document.getElementById('login-activity');
+  activityInput.addEventListener('input', () => { activityInput.value = activityInput.value.replace(/[^0-9]/g, ''); });
+
   document.getElementById('send-otp-btn').addEventListener('click', handleSendOtp);
 }
 
 // Access is scoped purely by Activity Number — there is no agent
-// roster to cross-check the mobile number against. Any mobile number
-// in a plausible 10-digit format can log into a valid activity.
+// roster to cross-check the team no. or mobile number against.
 function handleSendOtp() {
-  const activityId = document.getElementById('login-activity').value.trim().toUpperCase();
+  const activityId = document.getElementById('login-activity').value.trim();
+  const teamNo = document.getElementById('login-teamno').value.trim();
   const mobile = document.getElementById('login-mobile').value.trim();
   let valid = true;
 
@@ -134,6 +99,16 @@ function handleSendOtp() {
     activityErrorEl.textContent = '';
   }
 
+  // Team No is a serial number, not an arbitrary code — 1, 2, 3, ... —
+  // so 0 and leading zeros (e.g. "01") aren't valid.
+  const teamNoErrorEl = document.getElementById('login-teamno-error');
+  if (!/^[1-9]\d*$/.test(teamNo)) {
+    teamNoErrorEl.textContent = 'Please enter a Team No. starting from 1 (e.g. 1, 2, 3).';
+    valid = false;
+  } else {
+    teamNoErrorEl.textContent = '';
+  }
+
   const mobileErrorEl = document.getElementById('login-mobile-error');
   if (!/^\d{10}$/.test(mobile)) {
     mobileErrorEl.textContent = 'Please enter a valid 10-digit mobile number.';
@@ -144,7 +119,7 @@ function handleSendOtp() {
 
   if (!valid) return;
 
-  sessionStorage.setItem(PENDING_LOGIN_KEY, JSON.stringify({ activityId, mobile }));
+  sessionStorage.setItem(PENDING_LOGIN_KEY, JSON.stringify({ activityId, teamNo, mobile }));
   window.location.href = 'otp.html';
 }
 
@@ -226,15 +201,31 @@ function handleVerifyOtp(inputs, pending) {
     inputs.forEach(i => i.classList.add('input-invalid'));
     return;
   }
-  setAgentSession({ activityId: pending.activityId, mobile: pending.mobile });
+  setAgentSession({ activityId: pending.activityId, teamNo: pending.teamNo, mobile: pending.mobile });
   sessionStorage.removeItem(PENDING_LOGIN_KEY);
   clearInterval(otpTimerInterval);
   window.location.href = 'home.html';
 }
 
 /* ================================================================ */
-/* Home                                                                */
+/* Home — empty until the first photo is added, then a staging area   */
+/* for captured batches with a single "Submit All" action             */
 /* ================================================================ */
+
+// The in-progress capture session for an activity: { activityId,
+// captures: [{ elementNames, photo }, ...] }. Persisted in
+// sessionStorage via app.js's task-execution helpers so it survives
+// navigating between Home and the Add Photo flow.
+function getCaptureSessionFor(activityId) {
+  let exec = getTaskExecution();
+  if (!exec || exec.activityId !== activityId) {
+    exec = { activityId, captures: [] };
+    setTaskExecution(exec);
+  }
+  return exec;
+}
+
+const MIN_SUBMISSION_PHOTOS = 3;
 
 function initHomePage() {
   const session = requireAgentSession();
@@ -242,183 +233,160 @@ function initHomePage() {
   renderMobileBottomNav('home');
 
   const activity = getActivity(session.activityId);
-  const event = getEvent(activity.eventId);
-  const firstName = activity.fieldOfficerName ? activity.fieldOfficerName.split(' ')[0] : '';
+  document.getElementById('home-activity-id').textContent = `${activity.id} — ${activity.name}`;
 
-  document.getElementById('greeting-word').textContent = firstName ? greetingWord() + ',' : greetingWord() + '!';
-  document.getElementById('greeting-name').textContent = firstName;
-  document.getElementById('home-activity-id').textContent = activity.id;
-  document.getElementById('home-activity-location').textContent = `${activity.location.name}, ${activity.location.city}`;
-  document.getElementById('home-event-name').textContent = event ? event.name : '';
-  document.getElementById('home-event-dates').textContent = event ? formatDateRange(event.dateFrom, event.dateTo) : '';
-  document.getElementById('home-event-status').innerHTML = badge(activity.status);
+  const content = document.getElementById('home-content');
+  const exec = getCaptureSessionFor(activity.id);
 
-  const tasks = getTasksForActivity(activity.id);
-  document.getElementById('home-tasks-count').textContent = tasks.length;
-  const container = document.getElementById('home-tasks-list');
-  container.innerHTML = tasks.length === 0
-    ? emptyMobileState('No tasks have been created for this activity yet.')
-    : tasks.map(t => renderMobileTaskCard(t)).join('');
+  // Submissions are never final: a field officer can keep starting fresh
+  // submissions for the same activity, even after one already went
+  // through. The staging area (Start [Another] Submission) is shown
+  // above the submission history, not below it, so the action a
+  // returning user most likely wants is the first thing they see. Every
+  // past submission is its own permanent record — none of them are
+  // overridden or hidden by a newer one, so all are listed, newest first.
+  const allSubs = getSubmissionsForActivity(activity.id).slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  content.innerHTML = renderHomeStaging(exec, allSubs.length > 0) + renderSubmissionHistory(allSubs);
+  wireHomeActions(activity, exec);
 }
 
-/* ================================================================ */
-/* Tasks (mobile tab)                                                  */
-/* ================================================================ */
+function renderHomeStaging(exec, hasPriorSubmission) {
+  const count = exec.captures.length;
+  const startLabel = hasPriorSubmission ? 'Start Another Submission' : 'Start Submission';
 
-function initMobileTasksPage() {
-  const session = requireAgentSession();
-  if (!session) return;
-  renderMobileBottomNav('tasks');
-
-  const activity = getActivity(session.activityId);
-  const tasks = getTasksForActivity(activity.id);
-
-  const rejected = tasks.filter(t => computeTaskStatus(t) === 'Rejected');
-  const pending = tasks.filter(t => computeTaskStatus(t) === 'Pending');
-  const completed = tasks.filter(t => computeTaskStatus(t) === 'Completed');
-
-  const content = document.getElementById('mobile-tasks-content');
-  if (tasks.length === 0) {
-    content.innerHTML = emptyMobileState('No tasks have been created for this activity yet.');
-    return;
+  if (count === 0) {
+    return `<div class="home-empty-cta">
+      <div class="hec-icon">&#128247;</div>
+      <p>No photos added yet. Tap below to select elements and capture your first photo.</p>
+      <button class="btn btn-primary btn-block" id="add-photo-btn">${startLabel}</button>
+    </div>`;
   }
-  content.innerHTML =
-    renderMobileTaskSection('Needs Resubmission', rejected) +
-    renderMobileTaskSection('Pending', pending) +
-    renderMobileTaskSection('Completed', completed);
+
+  let html = `<div class="mobile-section-title">Captured So Far <span class="count-pill">${count}</span></div>`;
+  html += exec.captures.map(c => `
+    <div class="capture-batch-item">
+      <div class="cb-icon">&#128247;</div>
+      <div class="cb-tags">${c.elementNames.map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('')}</div>
+    </div>`).join('');
+
+  html += `<button class="btn btn-secondary btn-block" id="add-photo-btn" style="margin-top:6px;">${startLabel}</button>`;
+
+  const remainingRequired = MIN_SUBMISSION_PHOTOS - count;
+  html += `<p class="form-hint" style="text-align:center; margin: 10px 0;">${remainingRequired > 0
+    ? `Capture at least ${remainingRequired} more photo${remainingRequired > 1 ? 's' : ''} (minimum ${MIN_SUBMISSION_PHOTOS}) before you can submit.`
+    : `Minimum of ${MIN_SUBMISSION_PHOTOS} photos reached &mdash; you can submit now, or keep adding more.`}</p>`;
+  html += `<button class="btn btn-primary btn-block" id="submit-all-btn" ${remainingRequired > 0 ? 'disabled' : ''}>Submit All</button>`;
+  return html;
 }
 
-/* ================================================================ */
-/* Task Detail                                                        */
-/* ================================================================ */
+function wireHomeActions(activity, exec) {
+  const addBtn = document.getElementById('add-photo-btn');
+  if (addBtn) addBtn.addEventListener('click', () => window.location.href = 'capture.html');
 
-function initMobileTaskDetailPage() {
-  const session = requireAgentSession();
-  if (!session) return;
-
-  const taskId = getQueryParam('id');
-  const task = getTask(taskId);
-  const root = document.getElementById('task-detail-root');
-
-  renderMobileTopbar('mobile-topbar-mount', task ? task.name : 'Task', task ? task.id : '');
-  document.getElementById('mobile-back-btn').addEventListener('click', () => window.location.href = 'tasks.html');
-
-  if (!task || task.activityId !== session.activityId) {
-    root.innerHTML = emptyMobileState('This task is not available for your current activity.');
-    return;
-  }
-
-  const status = computeTaskStatus(task);
-
-  const reqTags = [];
-  if (task.requirements.photo) reqTags.push('Photo');
-  if (task.requirements.gps) reqTags.push('GPS Location');
-  if (task.requirements.timestamp) reqTags.push('Timestamp');
-  if (task.requirements.comment) reqTags.push('Comment');
-  if (task.requirements.customerDetails) reqTags.push('Customer Details');
-
-  let html = `
-    <div class="mobile-content">
-      <div class="mobile-block">
-        <div class="mobile-block-title">Task Information</div>
-        <div class="mobile-kv"><span class="k">Task</span><span class="v">${task.id}</span></div>
-        <div class="mobile-kv"><span class="k">Activity</span><span class="v">${task.activityId}</span></div>
-        <div class="mobile-kv"><span class="k">Scheduled</span><span class="v">${escapeHtml(task.scheduledTime || 'Unscheduled')}</span></div>
-        <div class="mobile-kv"><span class="k">Type</span><span class="v">${escapeHtml(task.type)}</span></div>
-      </div>
-      <div class="mobile-block">
-        <div class="mobile-block-title">Required</div>
-        <div class="req-list">${reqTags.map(r => `<div class="req-item"><span class="req-check">&#10003;</span>${r}</div>`).join('')}</div>
-      </div>
-  `;
-
-  if (status === 'Pending') {
-    html += `<button class="btn btn-primary btn-block" id="start-task-btn">Start Task</button>`;
-  } else if (status === 'Rejected') {
-    const sub = getLatestSubmissionForTask(task.id);
-    html += `
-      <div class="mobile-block" style="border-color:var(--color-red); background:var(--color-red-bg);">
-        <div class="mobile-block-title" style="color:var(--color-red);">Rejected &mdash; Resubmission Needed</div>
-        <p style="font-size:13px; color:var(--color-text); margin:0;">${escapeHtml(sub ? sub.rejectionReason || '' : '')}</p>
-      </div>
-      <button class="btn btn-primary btn-block" id="start-task-btn">Resubmit Task</button>`;
-  } else {
-    const sub = getLatestSubmissionForTask(task.id);
-    html += `
-      <div class="mobile-block">
-        <div class="mobile-block-title">Submission</div>
-        <div class="captured-photo-frame" style="height:170px; margin:0 0 12px;"><div class="cp-icon">&#128247;</div></div>
-        <div class="mobile-kv"><span class="k">Status</span><span class="v">${badge(sub.status)}</span></div>
-        <div class="mobile-kv"><span class="k">Submitted By</span><span class="v">${escapeHtml(sub.mobile)}</span></div>
-        <div class="mobile-kv"><span class="k">Submitted</span><span class="v">${formatTimeOnly(sub.submittedAt)}</span></div>
-        <div class="mobile-kv"><span class="k">Location</span><span class="v">${escapeHtml(sub.location)}</span></div>
-        <div class="mobile-kv"><span class="k">Latitude</span><span class="v">${sub.lat}</span></div>
-        <div class="mobile-kv"><span class="k">Longitude</span><span class="v">${sub.lng}</span></div>
-        ${sub.comment ? `<div class="mobile-kv"><span class="k">Comment</span><span class="v">${escapeHtml(sub.comment)}</span></div>` : ''}
-      </div>`;
-  }
-
-  html += `</div>`;
-  root.innerHTML = html;
-
-  const startBtn = document.getElementById('start-task-btn');
-  if (startBtn) {
-    startBtn.addEventListener('click', () => {
-      setTaskExecution({ taskId: task.id, step: 'camera', photo: null, lat: null, lng: null, location: null, accuracy: null, capturedAt: null, comment: '' });
-      window.location.href = `capture.html?taskId=${task.id}`;
+  const submitBtn = document.getElementById('submit-all-btn');
+  if (submitBtn) submitBtn.addEventListener('click', () => {
+    if (exec.captures.length < MIN_SUBMISSION_PHOTOS) return;
+    const session = requireAgentSession();
+    if (!session) return;
+    confirmDialog({
+      title: 'Submit all captured photos?',
+      message: 'Once submitted, you may not be able to edit it.',
+      confirmText: 'Submit',
+      onConfirm: () => finalizeSubmission(activity, session)
     });
-  }
+  });
+}
+
+// Every submission for this activity gets its own permanent card — none
+// are overridden or replaced by a later one.
+function renderSubmissionHistory(subs) {
+  if (subs.length === 0) return '';
+  return `<div class="mobile-section-title">Previous Submissions <span class="count-pill">${subs.length}</span></div>`
+    + subs.map(renderSubmittedSummary).join('');
+}
+
+// Mobile always displays "Submitted", never the underlying sub.status
+// ("Approved") — the field officer doesn't experience a review step, and
+// desktop still needs the real status value, so only this display is
+// hardcoded, not the stored data.
+function renderSubmittedSummary(sub) {
+  const elements = (sub.captures || []).reduce((acc, c) => acc.concat(c.elementNames), []);
+  return `
+    <div class="mobile-block">
+      <div class="mobile-block-title">Submission #${escapeHtml(sub.id)} &mdash; ${formatDateTime(sub.submittedAt)}</div>
+      <div class="mobile-kv"><span class="k">Status</span><span class="v">${badge('Submitted')}</span></div>
+      <div class="mobile-kv"><span class="k">Submitted By</span><span class="v">${escapeHtml(sub.mobile)}</span></div>
+      <div class="mobile-kv"><span class="k">Team No</span><span class="v">${escapeHtml(sub.teamNo || '—')}</span></div>
+      <div class="mobile-kv"><span class="k">Location</span><span class="v">${escapeHtml(sub.location)}</span></div>
+      <div class="mobile-kv"><span class="k">Photos</span><span class="v">${(sub.captures || []).length}</span></div>
+      <div class="tag-list" style="margin-top:8px;">${elements.map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
+    </div>`;
 }
 
 /* ================================================================ */
-/* Capture wizard: photo -> preview -> location -> details             */
+/* Add Photo: select elements -> capture photo -> back to Home        */
 /* ================================================================ */
+
+let CAPTURE_UI_STATE = null;
 
 function initCapturePage() {
   const session = requireAgentSession();
   if (!session) return;
 
-  const taskId = getQueryParam('taskId');
-  const task = getTask(taskId);
-  const exec = getTaskExecution();
+  const activity = getActivity(session.activityId);
+  const exec = getCaptureSessionFor(activity.id);
 
-  if (!task || !exec || exec.taskId !== taskId) {
-    window.location.href = `task-detail.html?id=${taskId}`;
-    return;
-  }
+  renderMobileTopbar('mobile-topbar-mount', 'Start Submission', activity.name);
+  document.getElementById('mobile-back-btn').addEventListener('click', () => handleCaptureBack(activity, exec));
 
-  renderMobileTopbar('mobile-topbar-mount', task.name, 'Capture Evidence');
-  document.getElementById('mobile-back-btn').addEventListener('click', () => handleCaptureBack(task));
-
-  renderCaptureStep(task, exec);
+  CAPTURE_UI_STATE = { step: 'select', selected: [] };
+  renderCaptureStep(activity, exec);
 }
 
-function handleCaptureBack(task) {
-  const exec = getTaskExecution();
-  const order = ['camera', 'preview', 'location', 'details'];
-  const idx = order.indexOf(exec.step);
-  if (idx <= 0) {
-    clearTaskExecution();
-    window.location.href = `task-detail.html?id=${task.id}`;
-    return;
+function handleCaptureBack(activity, exec) {
+  if (CAPTURE_UI_STATE.step === 'camera') {
+    CAPTURE_UI_STATE.step = 'select';
+    renderCaptureStep(activity, exec);
+  } else {
+    window.location.href = 'home.html';
   }
-  exec.step = order[idx - 1];
-  setTaskExecution(exec);
-  renderCaptureStep(task, exec);
 }
 
-function renderCaptureStep(task, exec) {
-  const steps = ['camera', 'preview', 'location', 'details'];
-  const stepIdx = steps.indexOf(exec.step);
+function renderCaptureStep(activity, exec) {
+  const steps = ['select', 'camera'];
+  const stepIdx = steps.indexOf(CAPTURE_UI_STATE.step);
   document.getElementById('capture-step-progress').innerHTML = steps.map((s, i) =>
     `<div class="step-dot ${i < stepIdx ? 'done' : (i === stepIdx ? 'current' : '')}"></div>`
   ).join('');
 
   const body = document.getElementById('capture-body');
 
-  if (exec.step === 'camera') {
+  if (CAPTURE_UI_STATE.step === 'select') {
+    // Elements can be picked again even if every element has already been
+    // covered at least once this submission — always offer the full list.
     body.innerHTML = `
-      <div class="mobile-section" style="padding-top:6px;"><div class="mobile-section-title">Capture Evidence</div></div>
+      <div class="mobile-section" style="padding-top:6px;"><div class="mobile-section-title">Select Elements</div></div>
+      <div class="mobile-content" style="padding-top:0;">
+        <div class="element-tiles" id="capture-elements-tiles"></div>
+      </div>
+      <div class="capture-actions"><button class="btn btn-primary" id="capture-select-next-btn">Capture Photo</button></div>
+    `;
+    renderElementTiles('capture-elements-tiles', activity.elementNames || [], CAPTURE_UI_STATE.selected);
+    document.getElementById('capture-select-next-btn').addEventListener('click', () => {
+      const selected = getCheckedValues('capture-elements-tiles');
+      if (selected.length === 0) {
+        showToast('Select at least one element', { type: 'error' });
+        return;
+      }
+      CAPTURE_UI_STATE.selected = selected;
+      CAPTURE_UI_STATE.step = 'camera';
+      renderCaptureStep(activity, exec);
+    });
+
+  } else if (CAPTURE_UI_STATE.step === 'camera') {
+    body.innerHTML = `
+      <div class="mobile-section" style="padding-top:6px;"><div class="mobile-section-title">Capture Photo</div></div>
+      <div class="tag-list" style="padding: 0 18px 14px;">${CAPTURE_UI_STATE.selected.map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('')}</div>
       <div class="placeholder-box camera-placeholder">
         <div class="ph-icon">&#128247;</div>
         <div class="ph-label">Camera Preview</div>
@@ -426,76 +394,22 @@ function renderCaptureStep(task, exec) {
       <div class="capture-actions"><button class="btn btn-primary" id="capture-photo-btn">Capture Photo</button></div>
     `;
     document.getElementById('capture-photo-btn').addEventListener('click', () => {
-      exec.photo = 'captured';
-      exec.step = 'preview';
+      exec.captures.push({ elementNames: CAPTURE_UI_STATE.selected.slice(), photo: 'captured' });
       setTaskExecution(exec);
-      renderCaptureStep(task, exec);
+      window.location.href = 'home.html';
     });
-
-  } else if (exec.step === 'preview') {
-    body.innerHTML = `
-      <div class="mobile-section" style="padding-top:6px;"><div class="mobile-section-title">Captured Photo</div></div>
-      <div class="captured-photo-frame">
-        <span class="cp-badge">Preview</span>
-        <div class="cp-icon">&#128247;</div>
-        <div class="cp-caption">Mock captured photo &mdash; ${escapeHtml(task.name)}</div>
-      </div>
-      <div class="capture-actions">
-        <button class="btn btn-secondary" id="retake-btn">Retake</button>
-        <button class="btn btn-primary" id="use-photo-btn">Use Photo</button>
-      </div>
-    `;
-    document.getElementById('retake-btn').addEventListener('click', () => {
-      exec.step = 'camera'; exec.photo = null;
-      setTaskExecution(exec);
-      renderCaptureStep(task, exec);
-    });
-    document.getElementById('use-photo-btn').addEventListener('click', () => {
-      exec.step = 'location';
-      setTaskExecution(exec);
-      renderCaptureStep(task, exec);
-    });
-
-  } else if (exec.step === 'location') {
-    renderLocationStep(task, exec, body);
-
-  } else if (exec.step === 'details') {
-    renderDetailsStep(task, exec, body);
   }
 }
 
-function renderLocationStep(task, exec, body) {
-  body.innerHTML = `
-    <div class="mobile-section" style="padding-top:6px;"><div class="mobile-section-title">Location</div></div>
-    <div class="mobile-content" style="padding-top:0;">
-      <div class="location-status loading" id="location-status-box">&#8987; Capturing location&hellip;</div>
-      <div id="location-details" style="display:none;">
-        <div class="mobile-block">
-          <div class="mobile-kv"><span class="k">Latitude</span><span class="v" id="loc-lat"></span></div>
-          <div class="mobile-kv"><span class="k">Longitude</span><span class="v" id="loc-lng"></span></div>
-          <div class="mobile-kv"><span class="k">Location</span><span class="v" id="loc-name"></span></div>
-          <div class="mobile-kv"><span class="k">Accuracy</span><span class="v" id="loc-accuracy"></span></div>
-        </div>
-      </div>
-    </div>
-    <div class="capture-actions">
-      <button class="btn btn-secondary" id="refresh-location-btn">Refresh Location</button>
-      <button class="btn btn-primary" id="location-continue-btn" disabled>Continue</button>
-    </div>
-  `;
-  document.getElementById('refresh-location-btn').addEventListener('click', () => captureLocation(task, exec));
-  document.getElementById('location-continue-btn').addEventListener('click', () => {
-    exec.step = 'details';
-    setTaskExecution(exec);
-    renderCaptureStep(task, exec);
-  });
-  captureLocation(task, exec);
-}
+/* ================================================================ */
+/* Submit                                                              */
+/* ================================================================ */
 
 // No real activity coordinates are collected on desktop in this build,
 // so the simulated GPS fix is derived from a small per-activity offset
 // (deterministic hash of the Activity Number) plus jitter, rather than
-// a real stored lat/lng. It is still entirely mock data.
+// a real stored lat/lng. It is still entirely mock data. Location is
+// captured silently once per submission rather than as its own step.
 function baseCoordsForActivity(activityId) {
   let hash = 0;
   for (let i = 0; i < activityId.length; i++) hash = (hash * 31 + activityId.charCodeAt(i)) >>> 0;
@@ -504,142 +418,33 @@ function baseCoordsForActivity(activityId) {
   return { lat, lng };
 }
 
-function captureLocation(task, exec) {
-  const activity = getActivity(task.activityId);
-  const statusBox = document.getElementById('location-status-box');
-  const detailsBox = document.getElementById('location-details');
-  const continueBtn = document.getElementById('location-continue-btn');
-  if (!statusBox) return;
-
-  statusBox.className = 'location-status loading';
-  statusBox.innerHTML = '&#8987; Capturing location&hellip;';
-  detailsBox.style.display = 'none';
-  if (continueBtn) continueBtn.disabled = true;
-
-  setTimeout(() => {
-    const base = baseCoordsForActivity(activity.id);
-    const jitter = () => (Math.random() - 0.5) * 0.0006;
-    const accuracy = 8 + Math.floor(Math.random() * 12);
-
-    exec.lat = Number((base.lat + jitter()).toFixed(4));
-    exec.lng = Number((base.lng + jitter()).toFixed(4));
-    exec.location = `${activity.location.name}, ${activity.location.city}`;
-    exec.accuracy = accuracy;
-    setTaskExecution(exec);
-
-    statusBox.className = 'location-status';
-    statusBox.innerHTML = '&#10003; Location captured';
-    document.getElementById('loc-lat').textContent = exec.lat;
-    document.getElementById('loc-lng').textContent = exec.lng;
-    document.getElementById('loc-name').textContent = exec.location;
-    document.getElementById('loc-accuracy').textContent = accuracy + ' meters';
-    detailsBox.style.display = 'block';
-    if (continueBtn) continueBtn.disabled = false;
-  }, 700);
-}
-
-function renderDetailsStep(task, exec, body) {
-  const now = demoNow();
-  exec.capturedAt = toNaiveIsoLocal(now);
-  setTaskExecution(exec);
-
-  body.innerHTML = `
-    <div class="mobile-section" style="padding-top:6px;"><div class="mobile-section-title">Capture Information</div></div>
-    <div class="mobile-content" style="padding-top:0;">
-      <div class="mobile-block">
-        <div class="mobile-kv"><span class="k">Captured At</span><span class="v">${formatDateTime(exec.capturedAt)}</span></div>
-        <div class="mobile-kv"><span class="k">Device</span><span class="v">Android Device</span></div>
-        <div class="mobile-kv"><span class="k">GPS</span><span class="v">Captured</span></div>
-      </div>
-      <div class="mobile-block">
-        <div class="mobile-block-title">Comments (optional)</div>
-        <textarea class="form-control" id="comment-input" rows="3" placeholder="Enter any observation...">${escapeHtml(exec.comment || '')}</textarea>
-      </div>
-      <button class="btn btn-primary btn-block" id="review-continue-btn">Continue to Review</button>
-    </div>
-  `;
-  document.getElementById('review-continue-btn').addEventListener('click', () => {
-    exec.comment = document.getElementById('comment-input').value.trim();
-    setTaskExecution(exec);
-    window.location.href = `review.html?taskId=${task.id}`;
-  });
-}
-
-/* ================================================================ */
-/* Review + Submit                                                     */
-/* ================================================================ */
-
-function initReviewPage() {
-  const session = requireAgentSession();
-  if (!session) return;
-
-  const taskId = getQueryParam('taskId');
-  const task = getTask(taskId);
-  const exec = getTaskExecution();
-
-  if (!task || !exec || exec.taskId !== taskId || !exec.lat) {
-    window.location.href = `task-detail.html?id=${taskId}`;
-    return;
-  }
-
-  renderMobileTopbar('mobile-topbar-mount', 'Review Submission', task.name);
-  document.getElementById('mobile-back-btn').addEventListener('click', () => {
-    exec.step = 'details';
-    setTaskExecution(exec);
-    window.location.href = `capture.html?taskId=${taskId}`;
-  });
-
-  document.getElementById('review-body').innerHTML = `
-    <div class="mobile-content">
-      <div class="mobile-block">
-        <div class="mobile-block-title">Photo</div>
-        <div class="captured-photo-frame" style="height:200px; margin:0;"><div class="cp-icon">&#128247;</div></div>
-      </div>
-      <div class="mobile-block">
-        <div class="mobile-kv"><span class="k">Location</span><span class="v">${escapeHtml(exec.location)}</span></div>
-        <div class="mobile-kv"><span class="k">Latitude</span><span class="v">${exec.lat}</span></div>
-        <div class="mobile-kv"><span class="k">Longitude</span><span class="v">${exec.lng}</span></div>
-        <div class="mobile-kv"><span class="k">Captured At</span><span class="v">${formatTimeOnly(exec.capturedAt)}</span></div>
-        <div class="mobile-kv"><span class="k">Comment</span><span class="v">${exec.comment ? escapeHtml(exec.comment) : 'No comment added'}</span></div>
-      </div>
-      <button class="btn btn-primary btn-block" id="submit-task-btn">Submit Task</button>
-    </div>
-  `;
-
-  document.getElementById('submit-task-btn').addEventListener('click', () => {
-    confirmDialog({
-      title: 'Submit this task evidence?',
-      message: 'Once submitted, you may not be able to edit it.',
-      confirmText: 'Submit',
-      onConfirm: () => finalizeSubmission(task, session)
-    });
-  });
-}
-
-function finalizeSubmission(task, session) {
+function finalizeSubmission(activity, session) {
   const exec = getTaskExecution();
   const now = demoNow();
   const serverNow = new Date(now.getTime() + 4000);
   const id = nextId('submission');
 
-  // Submissions are an append-only log per task (desktop's Task Detail
-  // shows the full history), so a resubmission after a rejection is
-  // simply a new row — the task's status is driven by whichever
-  // submission is most recent.
+  const base = baseCoordsForActivity(activity.id);
+  const jitter = () => (Math.random() - 0.5) * 0.0006;
+
   updateState(s => {
     s.submissions.push({
-      id, taskId: task.id, activityId: task.activityId, mobile: session.mobile,
+      id, activityId: activity.id, mobile: session.mobile, teamNo: session.teamNo,
       submittedAt: toNaiveIsoLocal(now),
       deviceTimestamp: formatTimeSec(now),
       serverTimestamp: formatTimeSec(serverNow),
-      lat: exec.lat, lng: exec.lng, location: exec.location, accuracy: exec.accuracy,
-      comment: exec.comment || '', status: 'Pending Review'
+      lat: Number((base.lat + jitter()).toFixed(4)),
+      lng: Number((base.lng + jitter()).toFixed(4)),
+      location: `${activity.name}, ${activity.stateName}`,
+      accuracy: 8 + Math.floor(Math.random() * 12),
+      captures: exec.captures,
+      status: 'Approved'
     });
   });
 
   clearTaskExecution();
   closeModal();
-  window.location.href = `success.html?taskId=${task.id}`;
+  window.location.href = 'success.html';
 }
 
 /* ================================================================ */
@@ -650,15 +455,14 @@ function initSuccessPage() {
   const session = requireAgentSession();
   if (!session) return;
 
-  const taskId = getQueryParam('taskId');
-  const task = getTask(taskId);
-  const sub = getSubmissionForTaskAndMobile(taskId, session.mobile);
+  const activity = getActivity(session.activityId);
+  const sub = getLatestSubmissionForActivity(session.activityId);
+  if (!activity || !sub) { window.location.href = 'home.html'; return; }
 
-  if (!task || !sub) { window.location.href = 'tasks.html'; return; }
-
-  document.getElementById('success-task-name').textContent = task.name;
+  document.getElementById('success-activity-name').textContent = activity.name;
   document.getElementById('success-time').textContent = formatTimeOnly(sub.submittedAt);
-  document.getElementById('back-to-tasks-btn').addEventListener('click', () => window.location.href = 'tasks.html');
+  document.getElementById('success-photo-count').textContent = (sub.captures || []).length;
+  document.getElementById('back-to-home-btn').addEventListener('click', () => window.location.href = 'home.html');
 }
 
 /* ================================================================ */
@@ -666,8 +470,8 @@ function initSuccessPage() {
 /* ================================================================ */
 
 // History is personal: it lists what THIS mobile number submitted,
-// even though the underlying task status is shared with anyone else
-// logged into the same activity.
+// even though the underlying submission status is shared with anyone
+// else logged into the same activity.
 function initHistoryPage() {
   const session = requireAgentSession();
   if (!session) return;
@@ -679,24 +483,77 @@ function initHistoryPage() {
 
   const container = document.getElementById('history-list');
   if (subs.length === 0) {
-    container.innerHTML = emptyMobileState('You have not submitted any tasks yet.');
+    container.innerHTML = emptyMobileState('You have not submitted anything yet.');
     return;
   }
 
+  const activity = getActivity(session.activityId);
   container.innerHTML = `<div class="history-group-label">Today</div>` + subs.map(s => {
-    const task = getTask(s.taskId);
-    const isRejected = s.status === 'Rejected';
-    return `<a href="task-detail.html?id=${s.taskId}" style="text-decoration:none; color:inherit; display:block;">
+    const photoCount = (s.captures || []).length;
+    return `<a href="submission-detail.html?id=${s.id}" style="text-decoration:none; color:inherit; display:block;">
       <div class="history-item">
-        <div class="hist-check" style="${isRejected ? 'background:var(--color-red-bg); color:var(--color-red);' : ''}">${isRejected ? '!' : '&#10003;'}</div>
+        <div class="hist-check">&#10003;</div>
         <div>
-          <div class="hist-name">${task ? escapeHtml(task.name) : s.taskId}</div>
-          <div class="hist-meta">${formatTimeOnly(s.submittedAt)} &middot; ${escapeHtml(s.location)}</div>
+          <div class="hist-name">${activity ? escapeHtml(activity.name) : s.activityId}</div>
+          <div class="hist-meta">${photoCount} photo${photoCount === 1 ? '' : 's'} &middot; ${formatTimeOnly(s.submittedAt)}</div>
         </div>
-        <div style="margin-left:auto;">${badge(s.status)}</div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          ${badge('Submitted')}
+          <span class="arrow">&rsaquo;</span>
+        </div>
       </div>
     </a>`;
   }).join('');
+}
+
+/* ================================================================ */
+/* Submission Detail (reached from History)                           */
+/* ================================================================ */
+
+function initMobileSubmissionDetailPage() {
+  const session = requireAgentSession();
+  if (!session) return;
+
+  const id = getQueryParam('id');
+  const sub = getSubmission(id);
+
+  renderMobileTopbar('mobile-topbar-mount', 'Submission Detail');
+  document.getElementById('mobile-back-btn').addEventListener('click', () => window.location.href = 'history.html');
+
+  const root = document.getElementById('submission-detail-root');
+
+  // Scoped to this session's own mobile + activity, matching History's
+  // own filtering — a field officer can only drill into their own
+  // submissions for the activity they're currently logged into.
+  if (!sub || sub.mobile !== session.mobile || sub.activityId !== session.activityId) {
+    root.innerHTML = `<div class="mobile-content">${emptyMobileState('This submission is not available.', 'Not Found')}</div>`;
+    return;
+  }
+
+  const activity = getActivity(sub.activityId);
+  const elements = (sub.captures || []).reduce((acc, c) => acc.concat(c.elementNames), []);
+
+  root.innerHTML = `
+    <div class="mobile-content">
+      <div class="mobile-block-title" style="margin-bottom:10px;">Photo Evidence</div>
+      ${renderPhotoGrid(sub)}
+      <div class="mobile-block">
+        <div class="mobile-kv"><span class="k">Status</span><span class="v">${badge('Submitted')}</span></div>
+        <div class="mobile-kv"><span class="k">Activity</span><span class="v">${activity ? escapeHtml(activity.name) : escapeHtml(sub.activityId)}</span></div>
+        <div class="mobile-kv"><span class="k">Submitted By</span><span class="v">${escapeHtml(sub.mobile)}</span></div>
+        <div class="mobile-kv"><span class="k">Team No</span><span class="v">${escapeHtml(sub.teamNo || '—')}</span></div>
+        <div class="mobile-kv"><span class="k">Submitted</span><span class="v">${formatDateTime(sub.submittedAt)}</span></div>
+        <div class="mobile-kv"><span class="k">Location</span><span class="v">${escapeHtml(sub.location)}</span></div>
+        <div class="mobile-kv"><span class="k">Latitude</span><span class="v">${sub.lat}</span></div>
+        <div class="mobile-kv"><span class="k">Longitude</span><span class="v">${sub.lng}</span></div>
+        <div class="mobile-kv"><span class="k">GPS Accuracy</span><span class="v">${sub.accuracy ? sub.accuracy + ' meters' : '—'}</span></div>
+      </div>
+      <div class="mobile-block">
+        <div class="mobile-block-title">Elements Covered</div>
+        <div class="tag-list">${elements.map(e => `<span class="tag">${escapeHtml(e)}</span>`).join('') || '&mdash;'}</div>
+      </div>
+    </div>
+  `;
 }
 
 /* ================================================================ */
@@ -709,13 +566,13 @@ function initProfilePage() {
   renderMobileBottomNav('profile');
 
   const activity = getActivity(session.activityId);
-  const displayName = activity.fieldOfficerName || 'Field Officer';
 
-  document.getElementById('profile-avatar').textContent = activity.fieldOfficerName ? initials(activity.fieldOfficerName) : 'FO';
-  document.getElementById('profile-name').textContent = displayName;
+  document.getElementById('profile-avatar').textContent = initials(session.teamNo || 'FO');
+  document.getElementById('profile-name').textContent = session.teamNo || 'Field Officer';
   document.getElementById('profile-mobile').textContent = session.mobile;
   document.getElementById('profile-activity-id').textContent = activity.id;
-  document.getElementById('profile-activity-location').textContent = `${activity.location.name}, ${activity.location.city}`;
+  document.getElementById('profile-activity-meta').textContent = `${activity.stateName} · ${activity.aoName}`;
+  document.getElementById('profile-activity-period').textContent = formatDateRange(activity.periodFrom, activity.periodTo);
 
   document.getElementById('help-row').addEventListener('click', () => {
     openModal(`
@@ -731,7 +588,7 @@ function initProfilePage() {
   document.getElementById('logout-row').addEventListener('click', () => {
     confirmDialog({
       title: 'Log Out?',
-      message: 'You will need your Activity Number and mobile OTP to log back in.',
+      message: 'You will need your Activity Number, Team No and mobile OTP to log back in.',
       confirmText: 'Log Out',
       danger: true,
       onConfirm: () => {

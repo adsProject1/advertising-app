@@ -6,255 +6,185 @@
  * read/write the same persisted state, so actions in one surface are
  * reflected in the other.
  *
- * There is no agent/user roster: field officers are assigned to
- * activities offline and simply log into the mobile app with the
- * Activity Number + their mobile number. An Activity may optionally
- * carry a free-text "field officer name" noted by ops for reference,
- * but it is not a structured identity — submissions are attributed by
- * whatever mobile number was entered at login.
+ * Flat data model: there is no Event or Task entity. An Activity is
+ * the only unit of work — it carries its own State/AO/Period/Element/
+ * Team-Van, and field officers execute it directly. There is no
+ * agent/user roster: field officers are assigned to activities
+ * offline and simply log into the mobile app with the Activity
+ * Number + their mobile number. Submissions are attributed by
+ * whatever mobile number was entered at login, and attach directly
+ * to the Activity.
+ *
+ * Activity IDs, Submission IDs and Team Numbers are all plain numeric
+ * strings (no letter prefix) by design — kept as strings (not JS
+ * numbers) so they still compare correctly against query-param values,
+ * which always arrive from the URL as strings.
  */
 
 const MOCK_DATA = {
-  events: [
-    {
-      id: 'EVT-10001',
-      name: 'Raksha Bandhan — Hero Bike Promotion',
-      description: 'Nationwide mall activation to promote the new Hero Splendor+ bike ahead of Raksha Bandhan, featuring live display, branding and customer photo moments.',
-      brand: 'Hero MotoCorp',
-      product: 'Hero Splendor+',
-      dateFrom: '2026-08-20',
-      dateTo: '2026-08-25',
-      elements: ['Product Display', 'Branding', 'Photoshoot', 'Customer Interaction'],
-      status: 'Active'
-    },
-    {
-      id: 'EVT-10002',
-      name: 'Diwali Product Promotion',
-      description: 'Festive season promotion for the LuminaHome LED Diya range across leading Mumbai malls.',
-      brand: 'LuminaHome',
-      product: 'LED Diya Light Range',
-      dateFrom: '2026-10-01',
-      dateTo: '2026-10-10',
-      elements: ['Product Display', 'Sampling', 'Lead Collection'],
-      status: 'Scheduled'
-    },
-    {
-      id: 'EVT-10003',
-      name: 'Summer Cooler Campaign',
-      description: 'In-mall demo campaign for the CoolBreeze Arctic Pro air cooler.',
-      brand: 'CoolBreeze',
-      product: 'Arctic Pro Air Cooler',
-      dateFrom: '2026-08-01',
-      dateTo: '2026-08-10',
-      elements: ['Product Display', 'Photoshoot', 'Demo'],
-      status: 'Completed'
-    },
-    {
-      id: 'EVT-10004',
-      name: 'New Year Smartphone Launch',
-      description: 'Launch activation for the Zenfone Nova X across Delhi NCR malls.',
-      brand: 'Zenfone',
-      product: 'Zenfone Nova X',
-      dateFrom: '2026-12-28',
-      dateTo: '2027-01-05',
-      elements: ['Product Display', 'Branding', 'Demo'],
-      status: 'Draft'
-    },
-    {
-      id: 'EVT-10005',
-      name: 'Monsoon Footwear Drive',
-      description: 'Rain-season promotion for the StepRight WaterGuard sneaker line.',
-      brand: 'StepRight',
-      product: 'WaterGuard Sneakers',
-      dateFrom: '2026-07-01',
-      dateTo: '2026-07-20',
-      elements: ['Product Display', 'Sampling'],
-      status: 'Completed'
-    },
-    {
-      id: 'EVT-10006',
-      name: 'Independence Day Mega Sale',
-      description: 'Store-wide sale activation originally planned for MegaMart outlets; cancelled due to vendor delay.',
-      brand: 'MegaMart',
-      product: 'Store-wide Sale',
-      dateFrom: '2026-08-13',
-      dateTo: '2026-08-18',
-      elements: ['Branding'],
-      status: 'Cancelled'
-    }
-  ],
-
   activities: [
     {
-      id: 'ACT-10001',
-      eventId: 'EVT-10001',
-      name: 'Phoenix Mall Pune',
-      description: 'Primary display activation at the main atrium of Phoenix Marketcity.',
-      type: 'Mall Promotion',
-      location: { name: 'Phoenix Marketcity', addressLine1: 'Viman Nagar', addressLine2: '', city: 'Pune', pin: '411014' },
-      elements: ['Branding', 'Product Display', 'Photoshoot', 'Customer Interaction'],
-      fieldOfficerName: 'Raj Kumar',
-      status: 'Active'
+      id: '10001',
+      stateName: 'Maharashtra',
+      aoName: 'AO - Pune',
+      name: 'Phoenix Mall Pune — Hero Bike Promotion',
+      periodFrom: '2026-08-20',
+      periodTo: '2026-08-25',
+      elementNames: ['Branding', 'Photoshoot'],
+      teamVan: 2
     },
     {
-      id: 'ACT-10002',
-      eventId: 'EVT-10001',
-      name: 'Amanora Mall Pune',
-      description: 'Secondary display activation at Amanora Park Town.',
-      type: 'Mall Promotion',
-      location: { name: 'Amanora Mall', addressLine1: 'Amanora Park Town', addressLine2: 'Hadapsar', city: 'Pune', pin: '411028' },
-      elements: ['Branding', 'Product Display', 'Photoshoot'],
-      fieldOfficerName: 'Amit Sharma',
-      status: 'Active'
+      id: '10002',
+      stateName: 'Maharashtra',
+      aoName: 'AO - Pune',
+      name: 'Amanora Mall Pune — Hero Bike Promotion',
+      periodFrom: '2026-08-20',
+      periodTo: '2026-08-25',
+      elementNames: ['Product Display', 'Photoshoot'],
+      teamVan: 1
     },
     {
-      id: 'ACT-10003',
-      eventId: 'EVT-10001',
-      name: 'Seasons Mall Pune',
-      description: 'Weekend brand activation with a promotional photo booth.',
-      type: 'Brand Activation',
-      location: { name: 'Seasons Mall', addressLine1: 'Magarpatta Road', addressLine2: '', city: 'Pune', pin: '411013' },
-      elements: ['Branding', 'Photoshoot'],
-      fieldOfficerName: 'Pooja Deshmukh',
-      status: 'Scheduled'
+      id: '10003',
+      stateName: 'Maharashtra',
+      aoName: 'AO - Pune',
+      name: 'Seasons Mall Pune — Brand Activation',
+      periodFrom: '2026-08-15',
+      periodTo: '2026-08-16',
+      elementNames: ['Photo Booth Activation'],
+      teamVan: 1
     },
     {
-      id: 'ACT-10004',
-      eventId: 'EVT-10002',
-      name: 'Inorbit Mall Mumbai',
-      description: 'Diwali sampling roadshow booth.',
-      type: 'Roadshow',
-      location: { name: 'Inorbit Mall', addressLine1: 'Malad West', addressLine2: '', city: 'Mumbai', pin: '400064' },
-      elements: ['Product Display', 'Sampling', 'Lead Generation'],
-      fieldOfficerName: '',
-      status: 'Scheduled'
+      id: '10004',
+      stateName: 'Maharashtra',
+      aoName: 'AO - Mumbai',
+      name: 'Inorbit Mall Mumbai — Diwali Sampling',
+      periodFrom: '2026-10-01',
+      periodTo: '2026-10-10',
+      elementNames: ['Sampling', 'Lead Collection'],
+      teamVan: 3
     },
     {
-      id: 'ACT-10005',
-      eventId: 'EVT-10003',
-      name: 'Forum Mall Bengaluru',
-      description: 'Cooler demo activation, concluded.',
-      type: 'Product Demo',
-      location: { name: 'Forum Mall', addressLine1: 'Koramangala', addressLine2: '', city: 'Bengaluru', pin: '560095' },
-      elements: ['Product Display', 'Photoshoot', 'Product Demonstration'],
-      fieldOfficerName: 'Raj Kumar',
-      status: 'Completed'
+      id: '10005',
+      stateName: 'Karnataka',
+      aoName: 'AO - Bengaluru',
+      name: 'Forum Mall Bengaluru — Cooler Demo',
+      periodFrom: '2026-08-01',
+      periodTo: '2026-08-10',
+      elementNames: ['Product Demonstration'],
+      teamVan: 1
     },
     {
-      id: 'ACT-10006',
-      eventId: 'EVT-10004',
-      name: 'Select Citywalk Delhi',
-      description: 'Launch-day activation, pending final approval.',
-      type: 'Brand Activation',
-      location: { name: 'Select Citywalk', addressLine1: 'Saket', addressLine2: '', city: 'New Delhi', pin: '110017' },
-      elements: ['Branding', 'Product Display'],
-      fieldOfficerName: '',
-      status: 'Draft'
-    }
-  ],
-
-  tasks: [
-    {
-      id: 'TSK-10001', activityId: 'ACT-10001', name: 'Morning Photoshoot',
-      description: 'Capture the bike display with the morning crowd.',
-      type: 'Photo Capture', scheduledTime: '10:00 AM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
+      id: '10006',
+      stateName: 'Delhi',
+      aoName: 'AO - Delhi',
+      name: 'Select Citywalk Delhi — Launch Activation',
+      periodFrom: '2026-12-28',
+      periodTo: '2027-01-05',
+      elementNames: ['Branding', 'Product Display'],
+      teamVan: 2
     },
     {
-      id: 'TSK-10002', activityId: 'ACT-10001', name: 'Afternoon Photoshoot',
-      description: 'Capture the bike display with the afternoon crowd.',
-      type: 'Photo Capture', scheduledTime: '2:00 PM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
+      id: '10007',
+      stateName: 'Tamil Nadu',
+      aoName: 'AO - Chennai',
+      name: 'Express Avenue Mall Chennai — Summer Cooler Campaign',
+      periodFrom: '2026-08-01',
+      periodTo: '2026-08-10',
+      elementNames: ['Product Demonstration', 'Video Capture'],
+      teamVan: 1
     },
     {
-      id: 'TSK-10003', activityId: 'ACT-10001', name: 'Evening Photoshoot',
-      description: 'Capture the bike display with the evening crowd.',
-      type: 'Photo Capture', scheduledTime: '6:00 PM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
+      id: '10008',
+      stateName: 'Telangana',
+      aoName: 'AO - Hyderabad',
+      name: 'GVK One Mall Hyderabad — Monsoon Footwear Drive',
+      periodFrom: '2026-08-18',
+      periodTo: '2026-08-24',
+      elementNames: ['Sampling', 'Product Display'],
+      teamVan: 2
     },
     {
-      id: 'TSK-10004', activityId: 'ACT-10001', name: 'Customer Interaction Log',
-      description: 'Log a short interaction with an interested customer.',
-      type: 'Customer Interaction', scheduledTime: '12:00 PM', executionType: 'Once',
-      requirements: { photo: false, gps: true, timestamp: true, comment: true, customerDetails: true }
+      id: '10009',
+      stateName: 'West Bengal',
+      aoName: 'AO - Kolkata',
+      name: 'South City Mall Kolkata — New Year Smartphone Launch',
+      periodFrom: '2026-12-15',
+      periodTo: '2026-12-31',
+      elementNames: ['Branding', 'Product Demonstration'],
+      teamVan: 1
     },
     {
-      id: 'TSK-10005', activityId: 'ACT-10001', name: 'Lead Collection Form',
-      description: 'Collect contact details from an interested walk-in.',
-      type: 'Lead Collection', scheduledTime: '4:00 PM', executionType: 'Once',
-      requirements: { photo: false, gps: true, timestamp: true, comment: true, customerDetails: true }
-    },
-    {
-      id: 'TSK-10006', activityId: 'ACT-10002', name: 'Morning Photoshoot',
-      description: 'Capture the bike display with the morning crowd.',
-      type: 'Photo Capture', scheduledTime: '10:00 AM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
-    },
-    {
-      id: 'TSK-10007', activityId: 'ACT-10002', name: 'Afternoon Photoshoot',
-      description: 'Capture the bike display with the afternoon crowd.',
-      type: 'Photo Capture', scheduledTime: '2:00 PM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
-    },
-    {
-      id: 'TSK-10008', activityId: 'ACT-10002', name: 'Evening Photoshoot',
-      description: 'Capture the bike display with the evening crowd.',
-      type: 'Photo Capture', scheduledTime: '6:00 PM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
-    },
-    {
-      id: 'TSK-10009', activityId: 'ACT-10003', name: 'Branding Setup Checklist',
-      description: 'Confirm branding elements are installed correctly.',
-      type: 'Checklist', scheduledTime: '9:00 AM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: true, customerDetails: false }
-    },
-    {
-      id: 'TSK-10010', activityId: 'ACT-10003', name: 'Product Demo Photos',
-      description: 'Capture the photo booth setup in action.',
-      type: 'Photo Capture', scheduledTime: '11:00 AM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
-    },
-    {
-      id: 'TSK-10011', activityId: 'ACT-10005', name: 'Demo Session Photos',
-      description: 'Capture the cooler demo session.',
-      type: 'Photo Capture', scheduledTime: '11:00 AM', executionType: 'Once',
-      requirements: { photo: true, gps: true, timestamp: true, comment: false, customerDetails: false }
+      id: '10010',
+      stateName: 'Gujarat',
+      aoName: 'AO - Ahmedabad',
+      name: 'Alpha One Mall Ahmedabad — Independence Day Sale Activation',
+      periodFrom: '2026-08-10',
+      periodTo: '2026-08-15',
+      elementNames: ['Branding', 'Customer Interaction'],
+      teamVan: 4
     }
   ],
 
   submissions: [
     {
-      id: 'SUB-10001', taskId: 'TSK-10001', activityId: 'ACT-10001', mobile: '9876543210',
+      id: '10001', activityId: '10001', mobile: '9876543210', teamNo: '1',
       submittedAt: '2026-08-20T10:12:43', deviceTimestamp: '10:12:43 AM', serverTimestamp: '10:12:49 AM',
-      lat: 18.5612, lng: 73.9178, location: 'Phoenix Marketcity, Pune', accuracy: 12,
-      comment: 'Hero bike display placed near main entrance.', status: 'Approved'
+      lat: 18.5612, lng: 73.9178, location: 'Phoenix Mall Pune — Hero Bike Promotion, Maharashtra', accuracy: 12,
+      captures: [
+        { elementNames: ['Branding'], photo: 'captured' },
+        { elementNames: ['Photoshoot'], photo: 'captured' }
+      ],
+      status: 'Approved'
     },
     {
-      id: 'SUB-10002', taskId: 'TSK-10006', activityId: 'ACT-10002', mobile: '9876543214',
+      id: '10002', activityId: '10002', mobile: '9876543214', teamNo: '2',
       submittedAt: '2026-08-20T10:15:00', deviceTimestamp: '10:15:00 AM', serverTimestamp: '10:15:06 AM',
-      lat: 18.5158, lng: 73.9376, location: 'Amanora Mall, Pune', accuracy: 22,
-      comment: 'Quick shot near the entrance.', status: 'Rejected',
-      rejectionReason: 'Photo is blurred and bike branding is not visible. Please resubmit a clearer photo.'
+      lat: 18.5158, lng: 73.9376, location: 'Amanora Mall Pune — Hero Bike Promotion, Maharashtra', accuracy: 22,
+      captures: [
+        { elementNames: ['Product Display', 'Photoshoot'], photo: 'captured' }
+      ],
+      status: 'Approved'
     },
     {
-      id: 'SUB-10003', taskId: 'TSK-10011', activityId: 'ACT-10005', mobile: '9876543210',
+      id: '10003', activityId: '10005', mobile: '9876543210', teamNo: '3',
       submittedAt: '2026-08-05T11:30:00', deviceTimestamp: '11:30:00 AM', serverTimestamp: '11:30:03 AM',
-      lat: 12.9345, lng: 77.6101, location: 'Forum Mall, Bengaluru', accuracy: 8,
-      comment: 'Demo session drew a good crowd.', status: 'Approved'
+      lat: 12.9345, lng: 77.6101, location: 'Forum Mall Bengaluru — Cooler Demo, Karnataka', accuracy: 8,
+      captures: [
+        { elementNames: ['Product Demonstration'], photo: 'captured' }
+      ],
+      status: 'Approved'
     }
   ],
 
-  nextIds: { event: 10007, activity: 10007, task: 10012, submission: 10004 }
+  // Master list of selectable elements, bilingual (English + Hindi). This
+  // is persisted state (not a static lookup constant) because ops can add
+  // new elements from the Activity form's element search, and those need
+  // to stick around for future activities, not just the current session.
+  elements: [
+    { en: 'Branding', hi: 'ब्रांडिंग' },
+    { en: 'Product Display', hi: 'उत्पाद डिस्प्ले' },
+    { en: 'Photoshoot', hi: 'फोटो शूट' },
+    { en: 'Video Capture', hi: 'वीडियो कैप्चर' },
+    { en: 'Customer Interaction', hi: 'ग्राहक बातचीत' },
+    { en: 'Lead Collection', hi: 'लीड संग्रहण' },
+    { en: 'Sampling', hi: 'सैंपलिंग' },
+    { en: 'Product Demonstration', hi: 'उत्पाद प्रदर्शन' },
+    { en: 'Photo Booth Activation', hi: 'फोटो बूथ एक्टिवेशन' },
+    { en: 'Roadshow Setup', hi: 'रोडशो सेटअप' }
+  ],
+
+  nextIds: { activity: 10011, submission: 10004 }
 };
 
-// Lookup constants used to populate dropdowns and legends across both apps.
-const EVENT_STATUSES = ['Draft', 'Scheduled', 'Active', 'Completed', 'Cancelled'];
-const ACTIVITY_STATUSES = ['Draft', 'Scheduled', 'Active', 'Completed', 'Cancelled'];
-const TASK_STATUSES = ['Pending', 'Rejected', 'Completed'];
-const SUBMISSION_STATUSES = ['Submitted', 'Pending Review', 'Approved', 'Rejected'];
+// Lookup constants used to populate dropdowns across both apps.
+const STATE_NAMES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat',
+  'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra',
+  'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
+];
 
-const EVENT_ELEMENTS = ['Product Display', 'Branding', 'Photoshoot', 'Customer Interaction', 'Lead Collection', 'Sampling', 'Demo', 'Other'];
-const ACTIVITY_TYPES = ['Mall Promotion', 'Roadshow', 'Product Demo', 'Brand Activation', 'Photoshoot', 'Sampling', 'Customer Engagement', 'Other'];
-const ACTIVITY_ELEMENTS = ['Branding', 'Product Display', 'Photoshoot', 'Customer Interaction', 'Lead Generation', 'Product Demonstration', 'Sampling'];
-const TASK_TYPES = ['Photo Capture', 'Video Capture', 'Form Submission', 'Customer Interaction', 'Product Demo', 'Lead Collection', 'Checklist', 'Other'];
-const EXECUTION_TYPES = ['Once', 'Multiple Times Per Day', 'Daily', 'Custom'];
+const AO_NAMES = [
+  'AO - Pune', 'AO - Mumbai', 'AO - Bengaluru', 'AO - Delhi', 'AO - Chennai', 'AO - Hyderabad',
+  'AO - Kolkata', 'AO - Ahmedabad'
+];
