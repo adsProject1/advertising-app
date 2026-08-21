@@ -354,14 +354,6 @@ function submitActivityForm(existing) {
   }
   elementError.textContent = '';
 
-  const teamLocationsError = document.getElementById('team-locations-error');
-  const teamVanCount = TEAM_LOCATIONS.length;
-  if (teamVanCount === 0 || TEAM_LOCATIONS.some(loc => !loc || !loc.trim())) {
-    teamLocationsError.textContent = `Enter a location for each of the ${teamVanCount || 'N'} team/vans, in order.`;
-    return;
-  }
-  teamLocationsError.textContent = '';
-
   const periodFrom = document.getElementById('activity-period-from').value;
   const periodTo = document.getElementById('activity-period-to').value;
   if (periodTo < periodFrom) {
@@ -415,7 +407,7 @@ function renderTeamLocationInputs() {
   section.style.display = '';
   list.innerHTML = TEAM_LOCATIONS.map((val, i) => `
     <div class="form-group">
-      <label>Team ${i + 1} Location <span class="req">*</span></label>
+      <label>Team ${i + 1} Location</label>
       <input type="text" class="form-control team-location-input" data-index="${i}" placeholder="e.g. Mhow" value="${escapeHtml(val || '')}">
     </div>
   `).join('');
@@ -589,7 +581,7 @@ function renderActivityDetail(a) {
         <div class="kv-item"><div class="kv-label">Number of Team/Vans</div><div class="kv-value">${escapeHtml(a.teamVan)}</div></div>
         <div class="kv-item">
           <div class="kv-label">Team/Van Locations</div>
-          <div class="tag-list" style="margin-top:4px;">${(a.teamVanLocations || []).map((loc, i) => `<span class="tag">Team ${i + 1}: ${escapeHtml(loc)}</span>`).join('') || '&mdash;'}</div>
+          <div class="tag-list" style="margin-top:4px;">${(a.teamVanLocations || []).map((loc, i) => `<span class="tag">Team ${i + 1}: ${loc ? escapeHtml(loc) : '&mdash;'}</span>`).join('') || '&mdash;'}</div>
         </div>
       </div>
       <p class="form-hint" style="margin: var(--sp-3) 0 0;">Field officers log into the mobile app using this Activity Number and their mobile number &mdash; no separate agent assignment is required.</p>
