@@ -96,17 +96,6 @@ function optionList(values, selected) {
 }
 
 /* ================================================================ */
-/* Cascade delete                                                    */
-/* ================================================================ */
-
-function deleteActivityCascade(activityId) {
-  updateState(s => {
-    s.activities = s.activities.filter(a => a.id !== activityId);
-    s.submissions = s.submissions.filter(sub => sub.activityId !== activityId);
-  });
-}
-
-/* ================================================================ */
 /* Dashboard                                                          */
 /* ================================================================ */
 
@@ -254,27 +243,9 @@ function renderActivitiesTable() {
       <div class="row-actions">
         <a class="btn btn-secondary btn-sm" href="activity-detail.html?id=${a.id}">View</a>
         <a class="btn btn-secondary btn-sm" href="activity-create.html?edit=${a.id}">Edit</a>
-        <button class="btn btn-secondary btn-sm" onclick="handleDeleteActivity('${a.id}')">Delete</button>
       </div>
     </td>
   </tr>`).join('');
-}
-
-function handleDeleteActivity(id) {
-  const a = getActivity(id);
-  confirmDialog({
-    title: 'Delete Activity?',
-    message: `Are you sure you want to delete <strong>${a.id}</strong> &mdash; ${escapeHtml(a.name)}? All submissions under this activity will also be removed. This action cannot be undone.`,
-    confirmText: 'Delete',
-    danger: true,
-    onConfirm: () => {
-      deleteActivityCascade(id);
-      closeModal();
-      showToast('Activity deleted');
-      if (document.getElementById('activities-tbody')) renderActivitiesTable();
-      else window.location.href = 'activities.html';
-    }
-  });
 }
 
 /* ================================================================ */
@@ -541,7 +512,7 @@ function initActivityDetailPage() {
   const a = getActivity(id);
   const root = document.getElementById('page-root');
   if (!a) {
-    root.innerHTML = emptyState({ icon: '&#10060;', title: 'Activity Not Found', message: 'This activity may have been deleted.', actionLabel: 'Back to Activities', actionHref: 'activities.html' });
+    root.innerHTML = emptyState({ icon: '&#10060;', title: 'Activity Not Found', message: 'No activity exists for that Activity Number.', actionLabel: 'Back to Activities', actionHref: 'activities.html' });
     return;
   }
   renderActivityDetail(a);
@@ -567,7 +538,6 @@ function renderActivityDetail(a) {
         </div>
         <div class="detail-header-actions">
           <a class="btn btn-secondary" href="activity-create.html?edit=${a.id}">Edit Activity</a>
-          <button class="btn btn-danger" onclick="handleDeleteActivity('${a.id}')">Delete Activity</button>
         </div>
       </div>
       <div class="kv-grid" style="margin-top: var(--sp-5);">
